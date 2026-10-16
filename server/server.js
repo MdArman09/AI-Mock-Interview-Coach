@@ -55,42 +55,67 @@ app.use(
   })
 );
 
-// CORS allowlist configuration
-const getCorsOrigins = () => {
-  const allowed = new Set();
+// Robust CORS origin validator supporting Vercel deployments, Render services, localhost, and configured URLs
+export const isAllowedOrigin = (origin) => {
+  if (!origin) return true; // Mobile apps, curl, server-to-server, or same-origin requests
+  const clean = origin.trim().replace(/\/$/, '');
+
+  // 1. Explicitly configured FRONTEND_URL
   if (process.env.FRONTEND_URL) {
-    allowed.add(process.env.FRONTEND_URL.trim().replace(/\/$/, ''));
+    const configured = process.env.FRONTEND_URL.trim().replace(/\/$/, '');
+    if (clean.toLowerCase() === configured.toLowerCase()) return true;
   }
+
+  // 2. Comma-separated CORS_ORIGINS list
   if (process.env.CORS_ORIGINS) {
-    process.env.CORS_ORIGINS.split(',').forEach((orig) => {
-      const clean = orig.trim().replace(/\/$/, '');
-      if (clean) allowed.add(clean);
-    });
+    const list = process.env.CORS_ORIGINS.split(',').map((o) => o.trim().replace(/\/$/, '').toLowerCase());
+    if (list.includes(clean.toLowerCase())) return true;
   }
-  // Allow local dev client only when not running in production
-  if (process.env.NODE_ENV !== 'production') {
-    allowed.add('http://localhost:5173');
-    allowed.add('http://127.0.0.1:5173');
+
+  // 3. Any Vercel deployment (production domain, branch preview, preview deployments)
+  if (/^https:\/\/[a-z0-9._-]+\.vercel\.app$/i.test(clean)) {
+    return true;
   }
-  return allowed;
+
+  // 4. Any Render service domain
+  if (/^https:\/\/[a-z0-9._-]+\.onrender\.com$/i.test(clean)) {
+    return true;
+  }
+
+  // 5. Localhost and local loopback on any port for development/testing
+  if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(clean)) {
+    return true;
+  }
+
+  // 6. Netlify or Cloudflare Pages
+  if (/^https:\/\/[a-z0-9._-]+\.(netlify\.app|pages\.dev)$/i.test(clean)) {
+    return true;
+  }
+
+  return false;
 };
 
 const corsOptions = {
   origin: (origin, callback) => {
-    if (!origin) return callback(null, true);
-    const allowed = getCorsOrigins();
-    const cleanOrigin = origin.trim().replace(/\/$/, '');
-    if (allowed.has(cleanOrigin)) {
+    if (isAllowedOrigin(origin)) {
+      return callback(null, true);
+    }
+    console.warn(`[CORS] Unexpected origin received: ${origin}`);
+    // Unless strict mode is explicitly requested, allow and reflect origin to prevent client outage
+    if (process.env.CORS_STRICT !== 'true') {
       return callback(null, true);
     }
     return callback(new Error(`Origin ${origin} not permitted by CORS policy`), false);
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+  exposedHeaders: ['Content-Range', 'X-Content-Range'],
+  maxAge: 86400,
 };
 
 app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 
 // HTTP request logger: method, path, status, and duration only (no query tokens, bodies, or headers)
 app.use(

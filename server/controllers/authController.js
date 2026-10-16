@@ -143,6 +143,7 @@ export const register = async (req, res) => {
             email: existingUser.email,
             name: existingUser.name,
             token: rawToken,
+            frontendUrl: req.headers.origin,
           });
         }
 
@@ -219,6 +220,7 @@ export const register = async (req, res) => {
         email: user.email,
         name: user.name,
         token: rawToken,
+        frontendUrl: req.headers.origin,
       });
     } catch (tokenErr) {
       console.error('[Verification Token Create Error]:', tokenErr);
@@ -390,6 +392,7 @@ export const resendVerification = async (req, res) => {
           email: user.email,
           name: user.name,
           token: rawToken,
+          frontendUrl: req.headers.origin,
         });
 
         if (sendResult?.success === false) {
@@ -599,6 +602,7 @@ export const forgotPassword = async (req, res) => {
           email: user.email,
           name: user.name,
           token: rawToken,
+          frontendUrl: req.headers.origin,
         });
 
         if (sendResult?.success === false) {

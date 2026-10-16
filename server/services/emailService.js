@@ -18,18 +18,20 @@ export const maskEmail = (email = '') => {
 };
 
 export const getEmailConfig = () => {
-  const mode = (process.env.EMAIL_MODE || 'console').toLowerCase();
+  const mode = (process.env.EMAIL_MODE || '').toLowerCase();
   const host = process.env.SMTP_HOST;
-  const port = parseInt(process.env.SMTP_PORT || '587', 10);
+  const port = parseInt(process.env.SMTP_PORT || '465', 10);
   const user = process.env.SMTP_USER;
   const pass = process.env.SMTP_PASS;
-  const from = process.env.EMAIL_FROM || 'AI Mock Interview Coach <no-reply@mockinterview.coach>';
+  const from = process.env.EMAIL_FROM || (user ? `AI Mock Interview Coach <${user}>` : 'AI Mock Interview Coach <no-reply@mockinterview.coach>');
   const frontendUrl = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/+$/, '');
 
   const isSmtpConfigured = Boolean(host && user && pass);
+  // If SMTP credentials are provided, default to SMTP mode even if EMAIL_MODE wasn't explicitly set
+  const activeMode = isSmtpConfigured && (mode === 'smtp' || mode === '') ? 'smtp' : mode === 'smtp' && isSmtpConfigured ? 'smtp' : 'console';
 
   return {
-    mode: mode === 'smtp' && isSmtpConfigured ? 'smtp' : 'console',
+    mode: activeMode,
     host,
     port,
     user,
@@ -212,10 +214,11 @@ const sendEmail = async ({ to, subject, html, text, type = 'notice', logMeta = {
 /**
  * Send email verification link (24h expiration)
  */
-export const sendVerificationEmail = async ({ email, name, token }) => {
+export const sendVerificationEmail = async ({ email, name, token, frontendUrl }) => {
   try {
     const config = getEmailConfig();
-    const actionLink = `${config.frontendUrl}/verify-email?token=${token}`;
+    const base = (frontendUrl || config.frontendUrl).replace(/\/+$/, '');
+    const actionLink = `${base}/verify-email?token=${token}`;
     const displayName = name ? name.split(' ')[0] : 'there';
 
     const subject = 'Verify your email — AI Mock Interview Coach';
@@ -275,10 +278,11 @@ If you didn't create an account, you can safely ignore this email.`;
 /**
  * Send password reset link (30 minute expiration)
  */
-export const sendPasswordResetEmail = async ({ email, name, token }) => {
+export const sendPasswordResetEmail = async ({ email, name, token, frontendUrl }) => {
   try {
     const config = getEmailConfig();
-    const actionLink = `${config.frontendUrl}/reset-password?token=${token}`;
+    const base = (frontendUrl || config.frontendUrl).replace(/\/+$/, '');
+    const actionLink = `${base}/reset-password?token=${token}`;
     const displayName = name ? name.split(' ')[0] : 'there';
 
     const subject = 'Reset your password — AI Mock Interview Coach';
