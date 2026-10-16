@@ -1,0 +1,30 @@
+{
+  "name": "ai-interview-coach-server",
+  "version": "1.0.0",
+  "description": "Backend API for AI Mock Interview Coach",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch --watch-path=server.js --watch-path=controllers --watch-path=models --watch-path=routes --watch-path=middleware --watch-path=config --watch-path=services server.js",
+    "test:email": "node scripts/testEmail.js"
+  },
+  "dependencies": {
+    "adm-zip": "^0.6.1",
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "express-rate-limit": "^8.7.1",
+    "groq-sdk": "^0.15.0",
+    "helmet": "^8.3.0",
+    "jsonwebtoken": "^9.0.3",
+    "mammoth": "^1.13.0",
+    "mongoose": "^8.9.5",
+    "morgan": "^1.12.1",
+    "multer": "^2.4.0",
+    "nodemailer": "^10.1.0",
+    "pdf-parse": "^2.4.5",
+    "zod": "^4.6.5"
+  }
+}

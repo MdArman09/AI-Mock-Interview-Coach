@@ -1,0 +1,18 @@
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Dependencies
+node_modules/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Uploads or temporary files
+uploads/
+temp/
+tmp/
+.env

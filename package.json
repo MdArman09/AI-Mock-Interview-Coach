@@ -1,0 +1,13 @@
+{
+  "name": "ai-mock-interview-coach",
+  "version": "1.0.0",
+  "private": true,
+  "description": "AI Mock Interview Coach",
+  "scripts": {
+    "dev": "npm --prefix server run dev",
+    "client": "npm --prefix client run dev",
+    "server": "npm --prefix server run dev",
+    "build": "npm --prefix client run build",
+    "start": "npm --prefix server start"
+  }
+}

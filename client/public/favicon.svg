@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" fill="none">
+  <!-- High-contrast brand squircle background optimized for browser tabs -->
+  <rect width="40" height="40" rx="9" fill="#2F5233"/>
+  <rect x="0.5" y="0.5" width="39" height="39" rx="8.5" stroke="#4A7A4E" stroke-opacity="0.5"/>
+  
+  <!-- Left Acoustic Voice Waves -->
+  <path d="M10.5 15.5C9.2 17 9.2 19 10.5 20.5" stroke="#FAF6EE" stroke-width="1.75" stroke-linecap="round"/>
+  <path d="M7.5 13.5C5.5 16 5.5 20 7.5 22.5" stroke="#FAF6EE" stroke-opacity="0.45" stroke-width="1.75" stroke-linecap="round"/>
+
+  <!-- Right Acoustic Voice Waves -->
+  <path d="M29.5 15.5C30.8 17 30.8 19 29.5 20.5" stroke="#FAF6EE" stroke-width="1.75" stroke-linecap="round"/>
+  <path d="M32.5 13.5C34.5 16 34.5 20 32.5 22.5" stroke="#FAF6EE" stroke-opacity="0.45" stroke-width="1.75" stroke-linecap="round"/>
+
+  <!-- Studio Condenser Mic Capsule -->
+  <rect x="16.5" y="10" width="7" height="12" rx="3.5" fill="#FAF6EE"/>
+  <line x1="18" y1="14" x2="22" y2="14" stroke="#2F5233" stroke-width="1" stroke-linecap="round"/>
+  <line x1="18" y1="17" x2="22" y2="17" stroke="#2F5233" stroke-width="1" stroke-linecap="round"/>
+
+  <!-- Shockmount Cradle Arc -->
+  <path d="M13.5 17C13.5 21.2 16.2 24.5 20 24.5C23.8 24.5 26.5 21.2 26.5 17" stroke="#FAF6EE" stroke-width="2" stroke-linecap="round" fill="none"/>
+
+  <!-- Mic Stem & Pedestal Base -->
+  <path d="M20 24.5V28.5M15.5 28.5H24.5" stroke="#FAF6EE" stroke-width="2" stroke-linecap="round"/>
+
+  <!-- 4-Point AI STAR Sparkle in Burnt Amber -->
+  <path d="M30 4C30 7.5 33.5 7.5 33.5 7.5C33.5 7.5 30 7.5 30 11C30 7.5 26.5 7.5 26.5 7.5C26.5 7.5 30 7.5 30 4Z" fill="#E07A5F"/>
+</svg>
