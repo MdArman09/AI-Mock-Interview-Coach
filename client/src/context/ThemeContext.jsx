@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
 const ThemeContext = createContext({
-  theme: 'light',
+  theme: 'dark',
   toggleTheme: () => {},
   setTheme: () => {},
   isDark: false,
@@ -14,9 +14,9 @@ export const ThemeProvider = ({ children }) => {
       if (saved === 'dark' || saved === 'light') {
         return saved;
       }
-      return 'light';
+      return 'dark';
     } catch {
-      return 'light';
+      return 'dark';
     }
   });
 
