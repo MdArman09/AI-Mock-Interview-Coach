@@ -49,8 +49,8 @@ export const ComparisonGrid = () => {
     {
       feature: 'Social Pressure & Judgment',
       traditional: 'High anxiety',
-      genericAi: 'Zero anxiety',
-      coach: 'Zero anxiety, 100% safe sandbox',
+      genericAi: 'Low pressure (text only)',
+      coach: 'Private, judgment-free practice space',
       coachHighlight: true,
     },
   ];

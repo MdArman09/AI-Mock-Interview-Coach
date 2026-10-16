@@ -383,52 +383,70 @@ export const Recorder = ({
           {/* Controls Bar & Mode Switcher */}
           <div className="flex flex-wrap items-center justify-between gap-3 mb-4 pb-3 border-b border-[#E4DCC9] dark:border-[#38342D]">
             {/* Mode selection tabs */}
-            <div className="flex items-center gap-1 bg-[#FAF6EE] dark:bg-[#181714] p-1 rounded-lg border border-[#E4DCC9] dark:border-[#38342D]">
-              <button
-                type="button"
-                onClick={() => setInputMode('voice')}
-                disabled={!isSupported}
-                className={`relative inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer ${
-                  inputMode === 'voice'
-                    ? 'text-[#1C1B17] dark:text-[#FAF6EE]'
-                    : 'text-[#787268] dark:text-[#A8A297] hover:text-[#1C1B17] dark:hover:text-[#FAF6EE]'
-                } ${!isSupported ? 'opacity-40 cursor-not-allowed' : ''}`}
-                title={isSupported ? 'Speak with microphone' : 'Microphone unavailable in this browser'}
-              >
-                {inputMode === 'voice' && (
-                  <motion.div
-                    layoutId="recorderInputModePill"
-                    className="absolute inset-0 bg-[#FFFDF8] dark:bg-[#23211D] rounded-md border border-[#E4DCC9] dark:border-[#38342D] shadow-xs"
-                    transition={{ type: 'spring', stiffness: 450, damping: 32 }}
-                  />
-                )}
-                <Mic className="relative z-10 w-3.5 h-3.5" />
-                <span className="relative z-10">Voice Mode</span>
-              </button>
+            <div className="flex flex-wrap items-center gap-2.5">
+              <div className="flex items-center gap-1 bg-[#FAF6EE] dark:bg-[#181714] p-1 rounded-lg border border-[#E4DCC9] dark:border-[#38342D]">
+                <button
+                  type="button"
+                  onClick={() => setInputMode('voice')}
+                  disabled={!isSupported}
+                  className={`relative inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer ${
+                    inputMode === 'voice'
+                      ? 'text-[#1C1B17] dark:text-[#FAF6EE]'
+                      : 'text-[#787268] dark:text-[#A8A297] hover:text-[#1C1B17] dark:hover:text-[#FAF6EE]'
+                  } ${!isSupported ? 'opacity-40 cursor-not-allowed' : ''}`}
+                  title={isSupported ? 'Speak with microphone' : 'Microphone unavailable in this browser'}
+                >
+                  {inputMode === 'voice' && (
+                    <motion.div
+                      layoutId="recorderInputModePill"
+                      className="absolute inset-0 bg-[#FFFDF8] dark:bg-[#23211D] rounded-md border border-[#E4DCC9] dark:border-[#38342D] shadow-xs"
+                      transition={{ type: 'spring', stiffness: 450, damping: 32 }}
+                    />
+                  )}
+                  <Mic className="relative z-10 w-3.5 h-3.5" />
+                  <span className="relative z-10">Voice Mode</span>
+                </button>
 
-              <button
-                type="button"
-                onClick={() => {
-                  if (isRecording) stopRecordingSession();
-                  setInputMode('type');
-                }}
-                className={`relative inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer ${
-                  inputMode === 'type'
-                    ? 'text-[#1C1B17] dark:text-[#FAF6EE]'
-                    : 'text-[#787268] dark:text-[#A8A297] hover:text-[#1C1B17] dark:hover:text-[#FAF6EE]'
-                }`}
-                title="Type your answer manually"
-              >
-                {inputMode === 'type' && (
-                  <motion.div
-                    layoutId="recorderInputModePill"
-                    className="absolute inset-0 bg-[#FFFDF8] dark:bg-[#23211D] rounded-md border border-[#E4DCC9] dark:border-[#38342D] shadow-xs"
-                    transition={{ type: 'spring', stiffness: 450, damping: 32 }}
-                  />
-                )}
-                <Keyboard className="relative z-10 w-3.5 h-3.5" />
-                <span className="relative z-10">Type Answer</span>
-              </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (isRecording) stopRecordingSession();
+                    setInputMode('type');
+                  }}
+                  className={`relative inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer ${
+                    inputMode === 'type'
+                      ? 'text-[#1C1B17] dark:text-[#FAF6EE]'
+                      : 'text-[#787268] dark:text-[#A8A297] hover:text-[#1C1B17] dark:hover:text-[#FAF6EE]'
+                  }`}
+                  title="Type your answer manually"
+                >
+                  {inputMode === 'type' && (
+                    <motion.div
+                      layoutId="recorderInputModePill"
+                      className="absolute inset-0 bg-[#FFFDF8] dark:bg-[#23211D] rounded-md border border-[#E4DCC9] dark:border-[#38342D] shadow-xs"
+                      transition={{ type: 'spring', stiffness: 450, damping: 32 }}
+                    />
+                  )}
+                  <Keyboard className="relative z-10 w-3.5 h-3.5" />
+                  <span className="relative z-10">Type Answer</span>
+                </button>
+              </div>
+
+              {inputMode === 'voice' && (
+                <span className="text-[11px] text-[#787268] dark:text-[#A8A297]">
+                  Prefer not to use your microphone?{' '}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (isRecording) stopRecordingSession();
+                      setInputMode('type');
+                    }}
+                    className="text-[#2F5233] dark:text-[#689D6A] font-semibold hover:underline cursor-pointer"
+                  >
+                    Switch to Type Answer.
+                  </button>
+                </span>
+              )}
             </div>
 
             {/* Recording Controls when in Voice Mode */}

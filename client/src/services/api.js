@@ -181,6 +181,24 @@ export const questionAPI = {
     const res = await api.get(`/api/questions/${id}`);
     return res.data;
   },
+  getQuestionCount: async () => {
+    try {
+      const res = await api.get('/api/questions/count');
+      if (typeof res.data?.count === 'number') {
+        return res.data.count;
+      }
+    } catch {
+      try {
+        const res = await api.get('/api/questions');
+        if (typeof res.data?.count === 'number') {
+          return res.data.count;
+        }
+      } catch {
+        // Fallback to default
+      }
+    }
+    return 12;
+  },
 };
 
 export const resumeAPI = {

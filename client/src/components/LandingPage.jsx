@@ -1,3 +1,4 @@
+// Every number or claim on this page must be derivable from the code or verifiably true. No unsupported absolutes (100%, zero, always, never) unless the code guarantees it.
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence, useInView } from 'framer-motion';
@@ -91,7 +92,7 @@ export const HowItWorks = () => {
     {
       number: '02',
       title: 'Answer with Voice',
-      category: 'Client-Side Audio',
+      category: 'Browser Speech API',
       description:
         'Speak directly into your browser microphone. Web Speech API captures your words in real time with live frequency feedback and pacing telemetry.',
       icon: <Mic className="w-5 h-5 text-[#2F5233] dark:text-[#689D6A]" />,
@@ -337,6 +338,14 @@ export const LandingPage = ({ onLogin, onSignUp, onOpenAuth, onGoToStudio }) => 
     }
   };
 
+  const handleOpenAudioFaq = () => {
+    setActiveFaqIndex(1);
+    const element = document.getElementById('faq');
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
   const faqs = [
     {
       question: 'How does the AI evaluate my interview responses?',
@@ -346,12 +355,12 @@ export const LandingPage = ({ onLogin, onSignUp, onOpenAuth, onGoToStudio }) => 
     {
       question: 'Is my microphone audio recorded or stored on remote servers?',
       answer:
-        'No. Speech recognition is processed in real time entirely within your browser via the Web Speech API. Only the resulting text transcript is analyzed by the AI engine, ensuring your audio stream remains client-side on your device.',
+        'Our servers never receive or store your audio. They only receive the text transcript of what you said. Speech-to-text itself is done by your browser’s built-in Web Speech API. In most browsers (such as Chrome and Edge) this works by sending audio to the browser vendor’s speech service, so avoid practicing with confidential company information. If you prefer, switch to Type Answer mode and no audio is used at all.',
     },
     {
       question: 'What types of interview questions are covered?',
       answer:
-        'We support over 50+ curated questions spanning Behavioral (conflict resolution, leadership, failure), Situational dilemmas, System Design principles, and Technical Problem Solving modeled after common industry interview standards.',
+        'We support curated practice questions spanning Behavioral (conflict resolution, leadership, failure), Situational dilemmas, and Technical Problem Solving, plus up to 40 more generated from your own resume.',
     },
     {
       question: 'Can I type my response manually if I do not have a microphone?',
@@ -989,7 +998,7 @@ export const LandingPage = ({ onLogin, onSignUp, onOpenAuth, onGoToStudio }) => 
       {/* 2.2 IMPACT METRICS COUNTER BAR                            */}
       {/* ========================================================= */}
       <section className="px-6 lg:px-8 max-w-7xl mx-auto -mt-6 sm:-mt-10 mb-14 relative z-20">
-        <StatsCounterBar />
+        <StatsCounterBar onOpenAudioFaq={handleOpenAudioFaq} />
       </section>
 
       {/* ========================================================= */}
@@ -1011,7 +1020,7 @@ export const LandingPage = ({ onLogin, onSignUp, onOpenAuth, onGoToStudio }) => 
             { label: 'Amazon Leadership Principles', tag: 'Behavioral' },
             { label: 'STAR Framework Scoring', tag: 'Rubric' },
             { label: 'Sub-Second AI Evaluation', tag: 'Fast AI' },
-            { label: 'In-Browser Speech API', tag: 'Privacy First' },
+            { label: 'In-Browser Speech API', tag: 'NO AUDIO STORED' },
             { label: 'Live Speech Pacing (WPM)', tag: 'Telemetry' },
             { label: 'Automated Filler Word Audits', tag: 'Clarity' },
             { label: 'System Architecture & Scalability', tag: 'Technical' },
@@ -1058,8 +1067,8 @@ export const LandingPage = ({ onLogin, onSignUp, onOpenAuth, onGoToStudio }) => 
             name="In-Browser Voice & Waveform Telemetry"
             className="md:col-span-2"
             Icon={Mic}
-            badge="Privacy First"
-            description="Speak directly to your browser without sending raw audio recordings to remote servers. Real-time sound frequency feedback and instant transcription."
+            badge="No Audio Stored"
+            description="Speak into your microphone and watch live waveform feedback. Your audio is transcribed by your browser’s built-in speech recognition, and only the text is sent to our servers."
             cta="Try voice studio"
             background={
               <div className="absolute right-0 top-1/2 -translate-y-1/2 w-80 h-36 flex items-center justify-end pr-8 gap-1.5 opacity-30">

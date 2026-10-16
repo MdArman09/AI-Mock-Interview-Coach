@@ -79,7 +79,7 @@ export const Footer = ({
             </div>
 
             <p className="text-xs sm:text-sm text-[#4A463F] dark:text-[#A8A297] leading-relaxed max-w-sm">
-              Methodical STAR interview preparation engineered with client-side speech telemetry, words-per-minute pacing metrics, and actionable rubric feedback.
+              Methodical STAR interview preparation engineered with real-time speech telemetry, words-per-minute pacing metrics, and actionable rubric feedback.
             </p>
 
             <div className="pt-2 flex items-center gap-3 text-xs text-[#787268] dark:text-[#A8A297]">
@@ -223,7 +223,7 @@ export const Footer = ({
               <li className="pt-1">
                 <div className="flex items-center gap-1 text-[11px] text-[#787268] dark:text-[#A8A297]">
                   <ShieldCheck className="w-3.5 h-3.5 text-[#2F5233] dark:text-[#689D6A] flex-shrink-0" />
-                  <span>Audio stays 100% in browser</span>
+                  <span>No Audio Stored · Browser Speech API</span>
                 </div>
               </li>
             </ul>

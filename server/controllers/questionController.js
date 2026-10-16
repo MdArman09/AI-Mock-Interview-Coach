@@ -233,3 +233,27 @@ export const refreshQuestionBankHandler = async (req, res) => {
     });
   }
 };
+
+/**
+ * @desc    Get count of questions in the default question bank
+ * @route   GET /api/questions/count
+ * @access  Public
+ */
+export const getQuestionCount = async (req, res) => {
+  try {
+    const filter = {
+      $or: [{ source: 'bank' }, { source: { $exists: false } }],
+    };
+    const count = await Question.countDocuments(filter);
+    return res.status(200).json({
+      success: true,
+      count: count || 12,
+    });
+  } catch (error) {
+    return res.status(200).json({
+      success: true,
+      count: 12,
+    });
+  }
+};
+

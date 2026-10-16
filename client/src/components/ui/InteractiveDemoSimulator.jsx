@@ -17,7 +17,7 @@ import ShimmerButton from './ShimmerButton';
 import RadialScoreGauge from './RadialScoreGauge';
 
 const SAMPLE_STRONG_ANSWER =
-  "At my previous company, our team was divided on whether to migrate our core auth service from REST to gRPC. The tech lead favored keeping REST for simplicity, while I advocated for gRPC due to our strict 50ms inter-service SLA during peak traffic. Rather than debating opinions, I built a quick prototype benchmark measuring throughput and latency under 10,000 concurrent requests. The data showed a 42% reduction in p99 latency with gRPC. I presented these benchmarks in a blameless RFC session, highlighting how it aligned with our quarterly latency goals. The team agreed with the data-driven proposal, we completed the phased rollout over two sprints, and we achieved zero downtime while cutting tail latency by 38%.";
+  "At my previous company, our team was divided on whether to migrate our core auth service from REST to gRPC. The tech lead favored keeping REST for simplicity, while I advocated for gRPC due to our strict 50ms inter-service SLA during peak traffic. Rather than debating opinions, I built a quick prototype benchmark measuring throughput and latency under 10,000 concurrent requests. The data showed a 42% reduction in p99 latency with gRPC. I presented these benchmarks in a blameless RFC session, highlighting how it aligned with our quarterly latency goals. The team agreed with the data-driven proposal, we completed the phased rollout over two sprints, and we achieved no downtime while cutting tail latency by 38%.";
 
 const SAMPLE_WEAK_ANSWER =
   "Um, so basically, we had this big argument about switching to gRPC. My lead wanted to stay with REST because he was used to it, and I really wanted gRPC because it's newer and faster. We had lots of meetings and kind of argued back and forth for like two weeks. Eventually he just said fine, do whatever you want. So I wrote the code and deployed it. It was pretty fast afterwards and people liked it, but yeah, it was kind of stressful.";
@@ -205,7 +205,7 @@ export const InteractiveDemoSimulator = ({ onGetStarted }) => {
               <div className="flex items-center justify-between gap-4">
                 <span className="text-[#787268] dark:text-[#A8A297]">STAR Completeness:</span>
                 <span className="font-semibold text-[#1C1B17] dark:text-[#FAF6EE]">
-                  {isStrong ? '100% Coverage' : '35% Coverage'}
+                  {isStrong ? 'Full Coverage' : '35% Coverage'}
                 </span>
               </div>
             </div>
@@ -243,7 +243,7 @@ export const InteractiveDemoSimulator = ({ onGetStarted }) => {
                 name: 'Result',
                 status: isStrong ? 'High' : 'Weak',
                 detail: isStrong
-                  ? 'Zero downtime, cut p99 tail latency by 38%'
+                  ? 'No downtime, cut p99 tail latency by 38%'
                   : 'Subjective mention that people liked it',
               },
             ].map((pillar) => (

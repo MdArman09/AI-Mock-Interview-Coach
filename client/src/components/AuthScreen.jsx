@@ -52,9 +52,9 @@ const SHOWCASE_FEATURES = [
     id: 'speech',
     builtFor: 'Real-time voice practice',
     title: 'In-Browser Speech Recognition',
-    description: 'Audio transcribed locally via the Web Speech API. Raw voice never leaves your device.',
+    description: 'We never store your audio. Speech-to-text is handled by your browser’s built-in recognition.',
     icon: Mic,
-    badge: 'Zero Latency • 100% Private',
+    badge: 'Browser Speech API • No Audio Stored',
   },
   {
     id: 'star',

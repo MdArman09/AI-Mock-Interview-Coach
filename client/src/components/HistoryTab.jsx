@@ -235,7 +235,7 @@ export const HistoryTab = ({ onSelectQuestionToRetry }) => {
     return Array.from(labels);
   }, [history]);
 
-  // Client-side filtering by questionSource and specific resume label
+  // Local in-memory filtering by questionSource and specific resume label
   const filteredHistory = useMemo(() => {
     return history.filter((session) => {
       const isResume = session.questionSource === 'resume';
