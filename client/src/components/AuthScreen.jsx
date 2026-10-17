@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
@@ -83,7 +83,7 @@ const SHOWCASE_FEATURES = [
 ];
 
 export const AuthScreen = ({ initialMode = 'login', onBack }) => {
-  const { login, register, loginWithGoogle } = useAuth();
+  const { login, register, loginWithGoogle, verifyEmailOtp } = useAuth();
   const toast = useToast();
   const [isRegister, setIsRegister] = useState(initialMode === 'signup' || initialMode === 'register');
   const [name, setName] = useState('');
@@ -93,6 +93,12 @@ export const AuthScreen = ({ initialMode = 'login', onBack }) => {
   const [loading, setLoading] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [error, setError] = useState('');
+
+  // 6-digit OTP verification state
+  const [otpDigits, setOtpDigits] = useState(['', '', '', '', '', '']);
+  const [otpVerifying, setOtpVerifying] = useState(false);
+  const [otpError, setOtpError] = useState('');
+  const otpInputRefs = useRef([]);
 
   // Google OAuth state
   const [googleLoading, setGoogleLoading] = useState(false);
@@ -120,6 +126,16 @@ export const AuthScreen = ({ initialMode = 'login', onBack }) => {
   const [emailSendFailed, setEmailSendFailed] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
   const [resending, setResending] = useState(false);
+
+  // Auto-focus first digit input when OTP view is shown
+  useEffect(() => {
+    if (showCheckEmail && otpInputRefs.current[0]) {
+      const timer = setTimeout(() => {
+        otpInputRefs.current[0]?.focus();
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [showCheckEmail]);
 
   // Unverified email error state during login
   const [isUnverifiedError, setIsUnverifiedError] = useState(false);
@@ -280,11 +296,11 @@ export const AuthScreen = ({ initialMode = 'login', onBack }) => {
         setResendCooldown(60);
 
         if (regRes?.emailSendFailed) {
-          toast.error('Email sending failed. Check the server logs.');
+          toast.error('Email sending failed. Check the server logs for your code.');
         } else if (regRes?.emailMode === 'console') {
-          toast.success('Dev mode: check server terminal for your link.');
+          toast.success('Dev mode: check server terminal for your 6-digit code.');
         } else {
-          toast.success('Verification link sent! Please check your email.');
+          toast.success('Verification code sent! Please check your email.');
         }
       } else {
         await login(email.trim(), password, handleRetryState);
@@ -305,9 +321,107 @@ export const AuthScreen = ({ initialMode = 'login', onBack }) => {
     }
   };
 
+  const handleVerifyOtp = async (codeOverride) => {
+    const code = (codeOverride !== undefined ? codeOverride : otpDigits.join('')).trim();
+    if (!code || code.length !== 6) {
+      setOtpError('Please enter all 6 digits of your verification code.');
+      return;
+    }
+
+    setOtpVerifying(true);
+    setOtpError('');
+    try {
+      await verifyEmailOtp({ email: registeredEmail, code });
+      toast.success('Email verified successfully! Opening your interview studio...');
+    } catch (err) {
+      const msg = err.message || 'Incorrect verification code. Please try again.';
+      setOtpError(msg);
+      toast.error(msg);
+    } finally {
+      setOtpVerifying(false);
+    }
+  };
+
+  const handleOtpDigitChange = (index, val) => {
+    const cleaned = val.replace(/\D/g, '');
+    if (!cleaned) {
+      const updated = [...otpDigits];
+      updated[index] = '';
+      setOtpDigits(updated);
+      setOtpError('');
+      return;
+    }
+
+    if (cleaned.length > 1) {
+      const chars = cleaned.slice(0, 6).split('');
+      const updated = [...otpDigits];
+      chars.forEach((c, i) => {
+        if (index + i < 6) updated[index + i] = c;
+      });
+      setOtpDigits(updated);
+      setOtpError('');
+      const nextIdx = Math.min(5, index + chars.length);
+      otpInputRefs.current[nextIdx]?.focus();
+      if (updated.every((d) => d.length === 1)) {
+        handleVerifyOtp(updated.join(''));
+      }
+      return;
+    }
+
+    const updated = [...otpDigits];
+    updated[index] = cleaned[0];
+    setOtpDigits(updated);
+    setOtpError('');
+
+    if (index < 5 && otpInputRefs.current[index + 1]) {
+      otpInputRefs.current[index + 1].focus();
+    }
+
+    if (updated.every((d) => d.length === 1)) {
+      handleVerifyOtp(updated.join(''));
+    }
+  };
+
+  const handleOtpKeyDown = (index, e) => {
+    if (e.key === 'Backspace') {
+      if (!otpDigits[index] && index > 0 && otpInputRefs.current[index - 1]) {
+        const updated = [...otpDigits];
+        updated[index - 1] = '';
+        setOtpDigits(updated);
+        otpInputRefs.current[index - 1].focus();
+      }
+    } else if (e.key === 'ArrowLeft' && index > 0 && otpInputRefs.current[index - 1]) {
+      otpInputRefs.current[index - 1].focus();
+    } else if (e.key === 'ArrowRight' && index < 5 && otpInputRefs.current[index + 1]) {
+      otpInputRefs.current[index + 1].focus();
+    }
+  };
+
+  const handleOtpPaste = (e) => {
+    e.preventDefault();
+    const pasted = e.clipboardData.getData('text').trim();
+    const digits = pasted.replace(/\D/g, '').slice(0, 6);
+    if (!digits) return;
+
+    const updated = ['', '', '', '', '', ''];
+    digits.split('').forEach((d, i) => {
+      updated[i] = d;
+    });
+    setOtpDigits(updated);
+    setOtpError('');
+
+    const nextFocus = Math.min(5, digits.length);
+    otpInputRefs.current[nextFocus]?.focus();
+
+    if (digits.length === 6) {
+      handleVerifyOtp(digits);
+    }
+  };
+
   const handleResendFromCheckEmail = async () => {
     if (resendCooldown > 0 || resending || !registeredEmail) return;
     setResending(true);
+    setOtpError('');
     try {
       const res = await authAPI.resendVerification(registeredEmail);
       if (res?.emailMode) setEmailMode(res.emailMode);
@@ -317,12 +431,14 @@ export const AuthScreen = ({ initialMode = 'login', onBack }) => {
       } else {
         setEmailSendFailed(false);
         if (res?.emailMode === 'console') {
-          toast.success('Dev mode: verification link printed in server terminal.');
+          toast.success('Dev mode: verification code printed in server terminal.');
         } else {
-          toast.success('Verification link sent! Check your inbox.');
+          toast.success('Verification code resent! Check your inbox.');
         }
       }
       setResendCooldown(60);
+      setOtpDigits(['', '', '', '', '', '']);
+      otpInputRefs.current[0]?.focus();
     } catch (err) {
       toast.error(err.message || 'Failed to resend verification email.');
     } finally {
@@ -336,9 +452,9 @@ export const AuthScreen = ({ initialMode = 'login', onBack }) => {
     try {
       const res = await authAPI.resendVerification(email.trim());
       if (res?.emailMode === 'console') {
-        toast.success('Dev mode: verification link printed in server terminal.');
+        toast.success('Dev mode: verification code printed in server terminal.');
       } else {
-        toast.success('Verification email resent! Please check your inbox.');
+        toast.success('Verification code resent! Please check your inbox.');
       }
       setLoginResendCooldown(60);
     } catch (err) {
@@ -353,6 +469,8 @@ export const AuthScreen = ({ initialMode = 'login', onBack }) => {
     setEmail('');
     setPassword('');
     setError('');
+    setOtpDigits(['', '', '', '', '', '']);
+    setOtpError('');
   };
 
   const activeFeature = SHOWCASE_FEATURES[activeFeatureIndex];
@@ -484,35 +602,80 @@ export const AuthScreen = ({ initialMode = 'login', onBack }) => {
                 </p>
               </div>
 
-              {/* Post-Registration "Check Email" Screen */}
+              {/* Post-Registration 6-Digit OTP Verification Screen */}
               {showCheckEmail ? (
                 <div className="space-y-4 text-center py-2">
-                  <div className="w-12 h-12 rounded-full bg-[#EEF3EE] dark:bg-[#1B2F1E] border border-[#D9E5DA] dark:border-[#2C4A2F] text-[#2F5233] dark:text-[#689D6A] flex items-center justify-center mx-auto">
-                    <CheckCircle2 className="w-6 h-6" />
+                  <div className="w-12 h-12 rounded-full bg-[#EEF3EE] dark:bg-[#1B2F1E] border border-[#D9E5DA] dark:border-[#2C4A2F] text-[#2F5233] dark:text-[#689D6A] flex items-center justify-center mx-auto shadow-xs">
+                    <ShieldCheck className="w-6 h-6" />
                   </div>
 
                   <div className="space-y-1">
                     <h2 className="text-lg font-serif font-bold text-[#1C1B17] dark:text-[#FAF6EE]">
-                      Check your email
+                      Enter Verification Code
                     </h2>
                     <p className="text-xs text-[#4A463F] dark:text-[#B5AFA2]">
-                      We sent a verification link to:
+                      We sent a 6-digit code to:
                     </p>
-                    <p className="text-xs font-semibold text-[#1C1B17] dark:text-[#FAF6EE] bg-[#FAF6EE] dark:bg-[#181714] py-1 px-3 rounded-md border border-[#E4DCC9] dark:border-[#38342D] inline-block font-mono">
-                      {registeredEmail}
+                    <div className="flex items-center justify-center gap-1.5 pt-0.5">
+                      <span className="text-xs font-semibold text-[#1C1B17] dark:text-[#FAF6EE] bg-[#FAF6EE] dark:bg-[#181714] py-1 px-3 rounded-md border border-[#E4DCC9] dark:border-[#38342D] font-mono">
+                        {registeredEmail}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleUseDifferentEmail}
+                        className="text-[11px] text-[#2F5233] dark:text-[#689D6A] hover:underline cursor-pointer ml-1"
+                        title="Use different email"
+                      >
+                        Edit
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 6 Digits Input Row */}
+                  <div className="py-2">
+                    <div
+                      className="flex items-center justify-center gap-2 sm:gap-2.5"
+                      onPaste={handleOtpPaste}
+                    >
+                      {otpDigits.map((digit, idx) => (
+                        <input
+                          key={idx}
+                          ref={(el) => (otpInputRefs.current[idx] = el)}
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          maxLength={1}
+                          value={digit}
+                          disabled={otpVerifying}
+                          onChange={(e) => handleOtpDigitChange(idx, e.target.value)}
+                          onKeyDown={(e) => handleOtpKeyDown(idx, e)}
+                          className={`w-10 h-12 sm:w-11 sm:h-13 text-center text-xl font-bold font-mono rounded-lg border bg-[#FAF6EE] dark:bg-[#181714] text-[#1C1B17] dark:text-[#FAF6EE] shadow-xs transition-all focus:outline-none disabled:opacity-50 ${
+                            digit
+                              ? 'border-[#2F5233] dark:border-[#689D6A] ring-1 ring-[#2F5233]/20 dark:ring-[#689D6A]/20'
+                              : 'border-[#E4DCC9] dark:border-[#38342D] focus:border-[#2F5233] dark:focus:border-[#689D6A] focus:ring-2 focus:ring-[#2F5233]/20'
+                          }`}
+                          aria-label={`Digit ${idx + 1}`}
+                        />
+                      ))}
+                    </div>
+
+                    <p className="text-[11px] text-[#787268] dark:text-[#A8A297] mt-2">
+                      Enter the 6 digits sent to your inbox. Code expires in <strong>15 minutes</strong>.
                     </p>
                   </div>
 
-                  <div className="text-left text-xs text-[#787268] dark:text-[#A8A297] space-y-1.5 bg-[#FAF6EE] dark:bg-[#181714] p-3 rounded-md border border-[#E4DCC9] dark:border-[#38342D]">
-                    <p>• Click the link in the email to activate your account.</p>
-                    <p>• The verification link is valid for <strong>24 hours</strong>.</p>
-                    <p>• <strong>Tip:</strong> If you don't see it, check your spam or promotions folder.</p>
-                  </div>
+                  {/* OTP Error message if any */}
+                  {otpError && (
+                    <div className="p-2.5 bg-[#FAEEE8] dark:bg-[#2B1B17] border border-[#F4D8CC] dark:border-[#4E271F] rounded-md text-xs text-[#C2572B] dark:text-[#E07A5F] text-left flex items-start gap-2">
+                      <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5 text-[#C2572B] dark:text-[#E07A5F]" />
+                      <span className="leading-snug">{otpError}</span>
+                    </div>
+                  )}
 
                   {emailSendFailed && (
                     <div className="p-3 bg-[#FAEEE8] dark:bg-[#2B1B17] border border-[#F4D8CC] dark:border-[#4E271F] rounded-md text-xs text-[#C2572B] dark:text-[#E07A5F] text-left flex items-start gap-2.5">
                       <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5 text-[#C2572B] dark:text-[#E07A5F]" />
-                      <span className="leading-snug">Email sending failed. Check server logs.</span>
+                      <span className="leading-snug">Email delivery delayed or blocked. Check server / Render logs for your 6-digit code.</span>
                     </div>
                   )}
 
@@ -520,33 +683,55 @@ export const AuthScreen = ({ initialMode = 'login', onBack }) => {
                     <div className="p-3 bg-[#FAF6EE] dark:bg-[#181714] border border-[#E4DCC9] dark:border-[#38342D] rounded-md text-xs text-[#2F5233] dark:text-[#689D6A] text-left flex items-start gap-2.5">
                       <Terminal className="w-4 h-4 flex-shrink-0 mt-0.5 text-[#2F5233] dark:text-[#689D6A]" />
                       <span className="font-mono text-[11px] leading-snug">
-                        Dev mode: no real email was sent. Check server terminal for your link.
+                        Dev mode: 6-digit verification code is printed in your server terminal.
                       </span>
                     </div>
                   )}
 
+                  {/* Submit & Resend Controls */}
                   <div className="space-y-2 pt-1">
                     <motion.button
                       type="button"
-                      disabled={resendCooldown > 0 || resending}
-                      onClick={handleResendFromCheckEmail}
+                      disabled={otpVerifying || otpDigits.some((d) => !d)}
+                      onClick={() => handleVerifyOtp()}
                       whileTap={{ scale: 0.97 }}
-                      className="w-full inline-flex items-center justify-center gap-2 px-4 py-2 bg-[#2F5233] hover:bg-[#244027] dark:bg-[#3B663F] dark:hover:bg-[#2F5233] text-[#FAF6EE] font-medium text-xs rounded-md transition-all disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer shadow-xs"
+                      className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-[#2F5233] hover:bg-[#244027] dark:bg-[#3B663F] dark:hover:bg-[#2F5233] text-[#FAF6EE] font-medium text-xs rounded-md transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shadow-xs"
                     >
-                      {resending ? (
+                      {otpVerifying ? (
                         <>
-                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          <span>Resending...</span>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <span>Verifying Code...</span>
                         </>
-                      ) : resendCooldown > 0 ? (
-                        <span>Resend in {resendCooldown}s</span>
                       ) : (
-                        <>
-                          <RefreshCw className="w-3.5 h-3.5" />
-                          <span>Resend Verification Email</span>
-                        </>
+                        <span>Verify & Enter Studio</span>
                       )}
                     </motion.button>
+
+                    <div className="flex items-center justify-between text-xs pt-1 px-1">
+                      <span className="text-[#787268] dark:text-[#8E877C]">
+                        Didn't get the code?
+                      </span>
+                      <button
+                        type="button"
+                        disabled={resendCooldown > 0 || resending}
+                        onClick={handleResendFromCheckEmail}
+                        className="inline-flex items-center gap-1.5 font-medium text-[#2F5233] dark:text-[#689D6A] hover:underline disabled:opacity-60 disabled:no-underline cursor-pointer"
+                      >
+                        {resending ? (
+                          <>
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                            <span>Sending...</span>
+                          </>
+                        ) : resendCooldown > 0 ? (
+                          <span>Resend in {resendCooldown}s</span>
+                        ) : (
+                          <>
+                            <RefreshCw className="w-3 h-3" />
+                            <span>Resend Code</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
 
                     <button
                       type="button"
@@ -657,24 +842,40 @@ export const AuthScreen = ({ initialMode = 'login', onBack }) => {
                         <span className="leading-snug block">{error}</span>
 
                         {isUnverifiedError && (
-                          <div className="mt-2.5 pt-2 border-t border-[#F4D8CC] dark:border-[#4E271F] flex items-center justify-between gap-2">
+                          <div className="mt-2.5 pt-2 border-t border-[#F4D8CC] dark:border-[#4E271F] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
                             <span className="text-[11px] text-[#787268] dark:text-[#B5AFA2]">
-                              Didn't receive the email?
+                              Account requires verification.
                             </span>
-                            <button
-                              type="button"
-                              disabled={loginResendCooldown > 0 || loginResending}
-                              onClick={handleResendFromLoginNotice}
-                              className="inline-flex items-center gap-1 font-medium text-[#2F5233] dark:text-[#689D6A] hover:underline disabled:opacity-60 disabled:no-underline cursor-pointer text-xs"
-                            >
-                              {loginResending ? (
-                                <span>Sending...</span>
-                              ) : loginResendCooldown > 0 ? (
-                                <span>Resend ({loginResendCooldown}s)</span>
-                              ) : (
-                                <span>Resend Verification</span>
-                              )}
-                            </button>
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setRegisteredEmail(email.trim());
+                                  setShowCheckEmail(true);
+                                  setOtpDigits(['', '', '', '', '', '']);
+                                  setOtpError('');
+                                  setResendCooldown(0);
+                                }}
+                                className="inline-flex items-center gap-1 font-semibold text-[#2F5233] dark:text-[#689D6A] hover:underline cursor-pointer text-xs"
+                              >
+                                Enter 6-Digit Code
+                              </button>
+                              <span className="text-gray-300 dark:text-gray-600">•</span>
+                              <button
+                                type="button"
+                                disabled={loginResendCooldown > 0 || loginResending}
+                                onClick={handleResendFromLoginNotice}
+                                className="inline-flex items-center gap-1 font-medium text-[#2F5233] dark:text-[#689D6A] hover:underline disabled:opacity-60 disabled:no-underline cursor-pointer text-xs"
+                              >
+                                {loginResending ? (
+                                  <span>Sending...</span>
+                                ) : loginResendCooldown > 0 ? (
+                                  <span>Resend ({loginResendCooldown}s)</span>
+                                ) : (
+                                  <span>Resend Code</span>
+                                )}
+                              </button>
+                            </div>
                           </div>
                         )}
                       </div>

@@ -169,7 +169,7 @@ const buildHtmlLayout = ({ title, preheader, contentHtml }) => {
 };
 
 /**
- * Generic email dispatcher supporting SMTP or console mode
+ * Generic email dispatcher supporting SMTP (via Nodemailer) or console mode
  */
 const sendEmail = async ({ to, subject, html, text, type = 'notice', logMeta = {} }) => {
   const config = getEmailConfig();
@@ -177,8 +177,11 @@ const sendEmail = async ({ to, subject, html, text, type = 'notice', logMeta = {
 
   if (config.mode === 'console') {
     console.log('\n┌────────────────────────────────────────────────────────────────────────┐');
-    console.log(`│ [Email CONSOLE] Type: ${type.padEnd(48)} │`);
+    console.log(`│ [Email CONSOLE - Nodemailer] Type: ${type.padEnd(41)} │`);
     console.log(`│ Recipient: ${to.padEnd(59)} │`);
+    if (logMeta.code) {
+      console.log(`│ 6-Digit Code: ${logMeta.code.padEnd(56)} │`);
+    }
     if (logMeta.actionLink) {
       console.log('│ Action Link (copy & paste into browser):                               │');
       console.log(`│ ${logMeta.actionLink.padEnd(70)} │`);
@@ -187,7 +190,7 @@ const sendEmail = async ({ to, subject, html, text, type = 'notice', logMeta = {
     return { success: true, mode: 'console' };
   }
 
-  // Standard SMTP via Nodemailer
+  // Standard SMTP via pure Nodemailer
   try {
     const transporter = getTransporter(config);
     const info = await transporter.sendMail({
@@ -204,14 +207,19 @@ const sendEmail = async ({ to, subject, html, text, type = 'notice', logMeta = {
       : 'none';
 
     console.log(
-      `[Email] Sent type: ${type} to: ${maskedTo} | messageId: ${info.messageId} | accepted: [${accepted}] | rejected: [${rejected}]`
+      `[Email][Nodemailer] Sent type: ${type} to: ${maskedTo} | messageId: ${info.messageId} | accepted: [${accepted}] | rejected: [${rejected}]${
+        logMeta.code ? ` | OTP: ${logMeta.code}` : ''
+      }`
     );
     return { success: true, messageId: info.messageId, mode: 'smtp' };
   } catch (error) {
     console.error(
-      `[Email][ERROR] Failed sending type: ${type} to: ${maskedTo} | code: ${error.code || 'UNKNOWN'} | message: ${error.message}`
+      `[Email][Nodemailer][ERROR] Failed sending type: ${type} to: ${maskedTo} | code: ${error.code || 'UNKNOWN'} | message: ${error.message}`
     );
-    // Print fallback verification link so developers / admins can find it in server logs if SMTP fails
+    // Print fallback verification code & link so developers / candidates can find it in server logs if SMTP fails or times out
+    if (logMeta.code) {
+      console.log(`[Email Fallback - 6-Digit Verification Code for ${to}]: ${logMeta.code}`);
+    }
     if (logMeta.actionLink) {
       console.log(`[Email Fallback Action Link (SMTP failed)]: ${logMeta.actionLink}`);
     }
@@ -225,52 +233,75 @@ const sendEmail = async ({ to, subject, html, text, type = 'notice', logMeta = {
 };
 
 /**
- * Send email verification link (24h expiration)
+ * Send email verification code & link (15m code expiration, pure Nodemailer)
  */
-export const sendVerificationEmail = async ({ email, name, token, frontendUrl }) => {
+export const sendVerificationEmail = async ({ email, name, code, token, frontendUrl }) => {
   try {
     const config = getEmailConfig();
     const base = (frontendUrl || config.frontendUrl).replace(/\/+$/, '');
-    const actionLink = `${base}/verify-email?token=${token}`;
+    const actionLink = token
+      ? `${base}/verify-email?token=${token}`
+      : `${base}/verify-email?email=${encodeURIComponent(email)}&code=${code || ''}`;
     const displayName = name ? name.split(' ')[0] : 'there';
+    const otpCode = code || '';
 
-    const subject = 'Verify your email — AI Mock Interview Coach';
-    const preheader = 'Please confirm your email address to start practicing with AI Mock Interview Coach.';
+    const subject = `${otpCode ? `${otpCode} is your verification code — ` : 'Verify your email — '}AI Mock Interview Coach`;
+    const preheader = otpCode
+      ? `Your 6-digit verification code is ${otpCode}. It expires in 15 minutes.`
+      : 'Please confirm your email address to start practicing with AI Mock Interview Coach.';
+
+    const codeSectionHtml = otpCode
+      ? `
+        <div style="margin: 24px 0; text-align: center;">
+          <div style="display: inline-block; background-color: #FAF6EE; border: 2px dashed #2F5233; border-radius: 8px; padding: 14px 28px; letter-spacing: 8px; font-size: 32px; font-weight: 700; font-family: 'Courier New', Courier, monospace; color: #2F5233;">
+            ${otpCode}
+          </div>
+          <p style="margin: 10px 0 0 0; font-size: 13px; color: #787268;">
+            Enter this code on the verification screen to activate your account.
+          </p>
+        </div>
+      `
+      : '';
 
     const contentHtml = `
       <p style="margin: 0 0 16px 0; font-size: 15px;">
         Hi ${displayName},
       </p>
-      <p style="margin: 0 0 20px 0;">
-        Thank you for joining <strong>AI Mock Interview Coach</strong>. Please verify your email address to activate your account and start practicing behavioral and technical interviews.
+      <p style="margin: 0 0 18px 0;">
+        Thank you for joining <strong>AI Mock Interview Coach</strong>. Please enter the verification code below to confirm your email and start practicing:
       </p>
 
-      <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin: 28px 0;">
+      ${codeSectionHtml}
+
+      <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin: 24px auto;">
         <tr>
           <td align="center" style="border-radius: 6px; background-color: #2F5233;">
-            <a href="${actionLink}" target="_blank" style="display: inline-block; padding: 12px 28px; font-size: 14px; font-weight: 600; color: #FAF6EE; text-decoration: none; border-radius: 6px; background-color: #2F5233; border: 1px solid #244027;">
-              Verify Email Address
+            <a href="${actionLink}" target="_blank" style="display: inline-block; padding: 11px 26px; font-size: 13px; font-weight: 600; color: #FAF6EE; text-decoration: none; border-radius: 6px; background-color: #2F5233; border: 1px solid #244027;">
+              Or Click Here to Verify Instantly
             </a>
           </td>
         </tr>
       </table>
 
-      <p style="margin: 0 0 12px 0; font-size: 13px; color: #4A463F;">
-        <strong>Note:</strong> This verification link will expire in <strong>24 hours</strong> and can only be used once.
+      <p style="margin: 0 0 12px 0; font-size: 13px; color: #4A463F; text-align: center;">
+        <strong>Note:</strong> This verification code and link will expire in <strong>15 minutes</strong>.
       </p>
-      <p style="margin: 0 0 12px 0; font-size: 12px; color: #787268; word-break: break-all;">
-        If the button above doesn't work, copy and paste this URL into your browser:<br />
-        <a href="${actionLink}" style="color: #2F5233; text-decoration: underline;">${actionLink}</a>
+      <p style="margin: 0; font-size: 12px; color: #787268; word-break: break-all; text-align: center;">
+        Direct link: <a href="${actionLink}" style="color: #2F5233; text-decoration: underline;">${actionLink}</a>
       </p>
     `;
 
     const text = `Hi ${displayName},
 
-Thank you for joining AI Mock Interview Coach. Please verify your email address to activate your account:
+Thank you for joining AI Mock Interview Coach.
 
+YOUR 6-DIGIT VERIFICATION CODE:
+${otpCode || 'N/A'}
+
+This code will expire in 15 minutes.
+
+You can also verify instantly by clicking this link:
 ${actionLink}
-
-This link will expire in 24 hours.
 
 If you didn't create an account, you can safely ignore this email.`;
 
@@ -280,10 +311,10 @@ If you didn't create an account, you can safely ignore this email.`;
       html: buildHtmlLayout({ title: 'Verify Your Email Address', preheader, contentHtml }),
       text,
       type: 'verify',
-      logMeta: { actionLink },
+      logMeta: { actionLink, code: otpCode },
     });
   } catch (err) {
-    console.error(`[Email][ERROR] sendVerificationEmail caught error for ${maskEmail(email)}:`, err.message);
+    console.error(`[Email][Nodemailer][ERROR] sendVerificationEmail caught error for ${maskEmail(email)}:`, err.message);
     return { success: false, error: err.message, mode: 'smtp' };
   }
 };

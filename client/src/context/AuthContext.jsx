@@ -79,6 +79,17 @@ export const AuthProvider = ({ children }) => {
     return res;
   };
 
+  const verifyEmailOtp = async ({ email, code }) => {
+    const res = await authAPI.verifyEmail({ email, code });
+    if (res.token && res.user) {
+      localStorage.setItem('interview_coach_token', res.token);
+      localStorage.setItem('interview_coach_user', JSON.stringify(res.user));
+      setToken(res.token);
+      setUser(res.user);
+    }
+    return res;
+  };
+
   const logout = () => {
     try {
       localStorage.removeItem('interview_coach_token');
@@ -104,6 +115,7 @@ export const AuthProvider = ({ children }) => {
     login,
     register,
     loginWithGoogle,
+    verifyEmailOtp,
     logout,
     updateUser,
   };

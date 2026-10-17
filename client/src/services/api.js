@@ -127,8 +127,9 @@ export const authAPI = {
     const res = await api.get('/api/auth/me', { timeout: 15000 });
     return res.data;
   },
-  verifyEmail: async (token) => {
-    const res = await api.post('/api/auth/verify-email', { token }, { timeout: 15000 });
+  verifyEmail: async (payload) => {
+    const body = typeof payload === 'string' ? { token: payload } : payload;
+    const res = await api.post('/api/auth/verify-email', body, { timeout: 15000 });
     return res.data;
   },
   resendVerification: async (email) => {

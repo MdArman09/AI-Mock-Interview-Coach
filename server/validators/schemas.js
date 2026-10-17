@@ -40,13 +40,13 @@ export const loginSchema = z
 
 export const verifyEmailSchema = z
   .object({
-    token: z
-      .string({ required_error: 'Verification token is required' })
-      .trim()
-      .min(32, 'Invalid verification token format')
-      .max(128, 'Invalid verification token format'),
+    token: z.string().trim().min(6).max(128).optional(),
+    email: z.string().trim().email('Please provide a valid email address').optional(),
+    code: z.string().trim().regex(/^\d{6}$/, 'Verification code must be 6 digits').optional(),
   })
-  .strict();
+  .refine((data) => Boolean(data.token || (data.email && data.code)), {
+    message: 'Either verification token or email and 6-digit code must be provided',
+  });
 
 export const resendVerificationSchema = z
   .object({

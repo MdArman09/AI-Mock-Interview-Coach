@@ -41,6 +41,11 @@ const hashToken = (token) => {
   return crypto.createHash('sha256').update(token.trim()).digest('hex');
 };
 
+// Helper to generate 6-digit numeric OTP string
+const generateOtpCode = () => {
+  return crypto.randomInt(100000, 1000000).toString();
+};
+
 /**
  * @desc    Register a new user
  * @route   POST /api/auth/register
@@ -120,7 +125,6 @@ export const register = async (req, res) => {
         const inCooldown = latestToken && now - latestToken.createdAt.getTime() < 60000;
         const reachedHourlyCap = hourlyCount >= 5;
 
-        let reVerifySendResult = { success: true };
         if (!inCooldown && !reachedHourlyCap) {
           // Invalidate previous verify tokens
           await AuthToken.updateMany(
@@ -128,21 +132,22 @@ export const register = async (req, res) => {
             { usedAt: new Date() }
           );
 
-          const rawToken = crypto.randomBytes(32).toString('hex');
-          const tokenHash = hashToken(rawToken);
-          const expiresAt = new Date(now + 24 * 60 * 60 * 1000); // 24 hours
+          const otpCode = generateOtpCode();
+          const tokenHash = hashToken(`${cleanEmail}:${otpCode}`);
+          const expiresAt = new Date(now + 15 * 60 * 1000); // 15 minutes
 
           await AuthToken.create({
             userId: existingUser._id,
             type: 'verify',
             tokenHash,
             expiresAt,
+            attempts: 0,
           });
 
           sendVerificationEmail({
             email: existingUser.email,
             name: existingUser.name,
-            token: rawToken,
+            code: otpCode,
             frontendUrl: req.headers.origin,
           }).catch((sendErr) => {
             console.error('[Register Re-verify Email Background Error]:', sendErr.message);
@@ -152,7 +157,8 @@ export const register = async (req, res) => {
         const reVerifyPayload = {
           success: true,
           code: 'VERIFICATION_SENT',
-          message: 'Verification link sent to your email. Please check your inbox.',
+          message: 'A 6-digit verification code has been sent to your email. Please check your inbox.',
+          email: existingUser.email,
         };
 
         if (process.env.NODE_ENV !== 'production') {
@@ -167,7 +173,8 @@ export const register = async (req, res) => {
       const fallbackPayload = {
         success: true,
         code: 'VERIFICATION_SENT',
-        message: 'Verification link sent to your email. Please check your inbox.',
+        message: 'A 6-digit verification code has been sent to your email. Please check your inbox.',
+        email: existingUser.email,
       };
       if (process.env.NODE_ENV !== 'production') {
         fallbackPayload.emailMode = getEmailConfig().mode;
@@ -201,23 +208,24 @@ export const register = async (req, res) => {
       });
     }
 
-    // Generate single-use 24h verification token
+    // Generate single-use 15m 6-digit verification code
     try {
-      const rawToken = crypto.randomBytes(32).toString('hex');
-      const tokenHash = hashToken(rawToken);
-      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+      const otpCode = generateOtpCode();
+      const tokenHash = hashToken(`${cleanEmail}:${otpCode}`);
+      const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
 
       await AuthToken.create({
         userId: user._id,
         type: 'verify',
         tokenHash,
         expiresAt,
+        attempts: 0,
       });
 
       sendVerificationEmail({
         email: user.email,
         name: user.name,
-        token: rawToken,
+        code: otpCode,
         frontendUrl: req.headers.origin,
       }).catch((sendErr) => {
         console.error('[Verification Email Background Error]:', sendErr.message);
@@ -229,7 +237,8 @@ export const register = async (req, res) => {
     const newRegisterPayload = {
       success: true,
       code: 'VERIFICATION_SENT',
-      message: 'Registration successful! Verification link sent to your email. Please check your inbox.',
+      message: 'Registration successful! A 6-digit verification code has been sent to your email. Please check your inbox.',
+      email: user.email,
     };
 
     if (process.env.NODE_ENV !== 'production') {
@@ -249,7 +258,7 @@ export const register = async (req, res) => {
 };
 
 /**
- * @desc    Verify email address using token
+ * @desc    Verify email address using 6-digit code or link token
  * @route   POST /api/auth/verify-email
  * @access  Public
  */
@@ -263,13 +272,117 @@ export const verifyEmail = async (req, res) => {
       });
     }
 
-    const { token } = req.body;
+    const { token, email, code } = req.body;
 
+    // Flow A: 6-digit numeric OTP code verification
+    if (code && email) {
+      const cleanEmail = email.trim().toLowerCase();
+      const cleanCode = code.trim();
+
+      const user = await User.findOne({ email: cleanEmail });
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          code: 'USER_NOT_FOUND',
+          message: 'No account found for this email address.',
+        });
+      }
+
+      if (user.emailVerified) {
+        const sessionToken = generateToken(user);
+        return res.status(200).json({
+          success: true,
+          code: 'ALREADY_VERIFIED',
+          message: 'Your email is already verified. Logging you in...',
+          token: sessionToken,
+          user: {
+            _id: user._id,
+            name: user.name,
+            email: user.email,
+            emailVerified: user.emailVerified,
+            profile: user.profile,
+          },
+        });
+      }
+
+      const expectedHash = hashToken(`${cleanEmail}:${cleanCode}`);
+      const authToken = await AuthToken.findOne({
+        userId: user._id,
+        type: 'verify',
+        usedAt: null,
+      }).sort({ createdAt: -1 });
+
+      if (!authToken) {
+        return res.status(400).json({
+          success: false,
+          code: 'NO_ACTIVE_CODE',
+          message: 'No active verification code found. Please request a new code.',
+        });
+      }
+
+      if (authToken.expiresAt < new Date()) {
+        return res.status(400).json({
+          success: false,
+          code: 'TOKEN_EXPIRED',
+          message: 'This verification code has expired. Please request a new one.',
+        });
+      }
+
+      if ((authToken.attempts || 0) >= 5) {
+        return res.status(400).json({
+          success: false,
+          code: 'MAX_ATTEMPTS_EXCEEDED',
+          message: 'Too many incorrect attempts. Please request a new verification code.',
+        });
+      }
+
+      if (authToken.tokenHash !== expectedHash) {
+        authToken.attempts = (authToken.attempts || 0) + 1;
+        await authToken.save();
+        const remaining = Math.max(0, 5 - authToken.attempts);
+        return res.status(400).json({
+          success: false,
+          code: 'CODE_INVALID',
+          message: `Incorrect 6-digit code. ${remaining} attempt${remaining === 1 ? '' : 's'} remaining.`,
+        });
+      }
+
+      // Valid OTP code!
+      user.emailVerified = true;
+      user.emailVerifiedAt = new Date();
+      await user.save();
+
+      authToken.usedAt = new Date();
+      await authToken.save();
+
+      const sessionToken = generateToken(user);
+      return res.status(200).json({
+        success: true,
+        code: 'EMAIL_VERIFIED',
+        message: 'Email verified successfully!',
+        token: sessionToken,
+        user: {
+          _id: user._id,
+          name: user.name,
+          email: user.email,
+          emailVerified: user.emailVerified,
+          profile: user.profile || {
+            name: user.name,
+            targetJob: '',
+            experienceLevel: 'Mid Level',
+            coachPreference: 'Balanced',
+          },
+          createdAt: user.createdAt,
+        },
+      });
+    }
+
+    // Flow B: Legacy token verification (from direct email link)
     if (!token || typeof token !== 'string') {
       return res.status(400).json({
         success: false,
         code: 'TOKEN_INVALID',
-        message: 'Verification token is required.',
+        message: 'Verification token or email with 6-digit code is required.',
       });
     }
 
@@ -293,19 +406,36 @@ export const verifyEmail = async (req, res) => {
     }
 
     // Mark user as verified
-    await User.findByIdAndUpdate(authToken.userId, {
-      emailVerified: true,
-      emailVerifiedAt: new Date(),
-    });
+    const user = await User.findByIdAndUpdate(
+      authToken.userId,
+      {
+        emailVerified: true,
+        emailVerifiedAt: new Date(),
+      },
+      { new: true }
+    );
 
     // Mark token as used
     authToken.usedAt = new Date();
     await authToken.save();
 
+    const sessionToken = user ? generateToken(user) : null;
+
     return res.status(200).json({
       success: true,
       code: 'EMAIL_VERIFIED',
       message: 'Email verified successfully. You can now log in.',
+      ...(sessionToken && {
+        token: sessionToken,
+        user: {
+          _id: user._id,
+          name: user.name,
+          email: user.email,
+          emailVerified: user.emailVerified,
+          profile: user.profile,
+          createdAt: user.createdAt,
+        },
+      }),
     });
   } catch (error) {
     console.error('Verify email error:', error);
@@ -319,7 +449,7 @@ export const verifyEmail = async (req, res) => {
 };
 
 /**
- * @desc    Resend verification email
+ * @desc    Resend verification email with 6-digit code
  * @route   POST /api/auth/resend-verification
  * @access  Public
  */
@@ -373,21 +503,22 @@ export const resendVerification = async (req, res) => {
           { usedAt: new Date() }
         );
 
-        const rawToken = crypto.randomBytes(32).toString('hex');
-        const tokenHash = hashToken(rawToken);
-        const expiresAt = new Date(now + 24 * 60 * 60 * 1000); // 24 hours
+        const otpCode = generateOtpCode();
+        const tokenHash = hashToken(`${cleanEmail}:${otpCode}`);
+        const expiresAt = new Date(now + 15 * 60 * 1000); // 15 minutes
 
         await AuthToken.create({
           userId: user._id,
           type: 'verify',
           tokenHash,
           expiresAt,
+          attempts: 0,
         });
 
         const sendResult = await sendVerificationEmail({
           email: user.email,
           name: user.name,
-          token: rawToken,
+          code: otpCode,
           frontendUrl: req.headers.origin,
         });
 
@@ -405,7 +536,8 @@ export const resendVerification = async (req, res) => {
       return res.status(200).json({
         success: true,
         code: 'VERIFICATION_SENT',
-        message: 'If an unverified account exists, we’ve sent a verification link to your email.',
+        message: 'If an unverified account exists, we’ve sent a 6-digit verification code to your email.',
+        email: cleanEmail,
         emailMode: emailConfig.mode,
         ...(emailSendFailed && { emailSendFailed: true }),
       });
@@ -416,7 +548,8 @@ export const resendVerification = async (req, res) => {
       return res.status(200).json({
         success: true,
         code: 'VERIFICATION_SENT',
-        message: 'If an unverified account exists, we’ve sent a verification link to your email.',
+        message: 'If an unverified account exists, we’ve sent a 6-digit verification code to your email.',
+        email: cleanEmail,
       });
     }
   } catch (error) {
@@ -493,6 +626,7 @@ export const login = async (req, res) => {
         success: false,
         code: 'EMAIL_NOT_VERIFIED',
         message: 'Please verify your email address before logging in.',
+        email: user.email,
       });
     }
 

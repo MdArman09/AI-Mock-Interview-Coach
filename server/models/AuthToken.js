@@ -17,7 +17,6 @@ const authTokenSchema = new mongoose.Schema(
     tokenHash: {
       type: String,
       required: [true, 'Token hash is required'],
-      unique: true,
       index: true,
     },
     expiresAt: {
@@ -27,6 +26,10 @@ const authTokenSchema = new mongoose.Schema(
     usedAt: {
       type: Date,
       default: null,
+    },
+    attempts: {
+      type: Number,
+      default: 0,
     },
   },
   {
