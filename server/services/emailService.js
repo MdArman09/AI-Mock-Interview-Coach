@@ -19,6 +19,7 @@ export const maskEmail = (email = '') => {
 
 export const getEmailConfig = () => {
   const mode = (process.env.EMAIL_MODE || '').trim().toLowerCase().replace(/^["']|["']$/g, '');
+  const brevoApiKey = (process.env.BREVO_API_KEY || '').trim().replace(/^["']|["']$/g, '');
   const host = (process.env.SMTP_HOST || '').trim().replace(/^["']|["']$/g, '');
   const port = parseInt(process.env.SMTP_PORT || '465', 10);
   const user = (process.env.SMTP_USER || '').trim().replace(/^["']|["']$/g, '');
@@ -32,17 +33,21 @@ export const getEmailConfig = () => {
     .replace(/^["']|["']$/g, '')
     .replace(/\/+$/, '');
 
+  const isBrevoConfigured = Boolean(brevoApiKey);
   const isSmtpConfigured = Boolean(host && user && pass);
-  // If SMTP credentials are provided, default to SMTP mode even if EMAIL_MODE wasn't explicitly set
-  const activeMode =
-    isSmtpConfigured && (mode === 'smtp' || mode === '')
-      ? 'smtp'
-      : mode === 'smtp' && isSmtpConfigured
-      ? 'smtp'
-      : 'console';
+
+  let activeMode = 'console';
+  if (mode === 'brevo' && isBrevoConfigured) {
+    activeMode = 'brevo';
+  } else if (isBrevoConfigured && (mode === '' || mode === 'brevo')) {
+    activeMode = 'brevo';
+  } else if (isSmtpConfigured && (mode === 'smtp' || mode === '')) {
+    activeMode = 'smtp';
+  }
 
   return {
     mode: activeMode,
+    brevoApiKey,
     host,
     port,
     user,
@@ -79,30 +84,42 @@ export const getTransporter = (config = getEmailConfig()) => {
 
 /**
  * Startup diagnostic verification:
- * Prints the active mode and tests SMTP connection if configured.
- * Never logs SMTP_PASS or secret credentials.
+ * Prints the active mode and tests connection if configured.
+ * Never logs secrets.
  */
 export const verifyEmailServiceStartup = async () => {
   const config = getEmailConfig();
-  console.log(`[Email] Mode: ${config.mode}`);
+  console.log(`[Email] Active Mode: ${config.mode.toUpperCase()}`);
+
+  if (config.mode === 'brevo') {
+    if (!config.brevoApiKey) {
+      console.warn('[Email][Brevo] Warning: BREVO_API_KEY is not configured. Emails will fail.');
+      return { success: false, error: 'BREVO_API_KEY is missing' };
+    }
+    const maskedKey = config.brevoApiKey.length > 8 ? `${config.brevoApiKey.slice(0, 8)}...` : '***';
+    console.log(
+      `[Email][Brevo] HTTPS REST API initialized (Port 443, sender: ${config.from}, key: ${maskedKey})`
+    );
+    return { success: true, mode: 'brevo' };
+  }
 
   if (config.mode === 'smtp') {
     try {
       const transporter = getTransporter(config);
       await transporter.verify();
       console.log(
-        `[Email] SMTP server verified successfully (host: ${config.host}, port: ${config.port}, user: ${maskEmail(config.user)})`
+        `[Email][SMTP] Server verified successfully (host: ${config.host}, port: ${config.port}, user: ${maskEmail(config.user)})`
       );
-      return { success: true };
+      return { success: true, mode: 'smtp' };
     } catch (err) {
       console.error(
-        `[Email][ERROR] SMTP connection verification failed: ${err.message} (host: ${config.host}, port: ${config.port}, user: ${maskEmail(config.user)})`
+        `[Email][SMTP][ERROR] Connection verification failed: ${err.message} (host: ${config.host}, port: ${config.port}, user: ${maskEmail(config.user)})`
       );
-      return { success: false, error: err.message };
+      return { success: false, error: err.message, mode: 'smtp' };
     }
   }
 
-  return { success: true };
+  return { success: true, mode: 'console' };
 };
 
 /**
@@ -169,7 +186,69 @@ const buildHtmlLayout = ({ title, preheader, contentHtml }) => {
 };
 
 /**
- * Generic email dispatcher supporting SMTP (via Nodemailer) or console mode
+ * Dispatch transactional email using Brevo's HTTPS REST API (Port 443)
+ * Completely unblocked on Render Free Tier.
+ */
+const sendEmailViaBrevo = async ({ to, subject, html, text, config, logMeta = {} }) => {
+  const maskedTo = maskEmail(to);
+
+  // Parse sender name and email from config.from
+  let senderName = 'AI Mock Interview Coach';
+  let senderEmail = config.from;
+  const match = config.from.match(/^(.*?)\s*<(.+)>$/);
+  if (match) {
+    senderName = match[1].replace(/^["']|["']$/g, '').trim() || senderName;
+    senderEmail = match[2].trim();
+  }
+
+  const payload = {
+    sender: {
+      name: senderName,
+      email: senderEmail,
+    },
+    to: [
+      {
+        email: to.trim().toLowerCase(),
+        name: logMeta.recipientName || 'Candidate',
+      },
+    ],
+    subject,
+    htmlContent: html,
+    textContent: text,
+  };
+
+  const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+    method: 'POST',
+    headers: {
+      'api-key': config.brevoApiKey,
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    const errorMsg = data?.message || `HTTP ${response.status} ${response.statusText}`;
+    throw new Error(`Brevo API error: ${errorMsg}`);
+  }
+
+  console.log(
+    `[Email][Brevo API] Successfully delivered type: ${logMeta.type || 'email'} to: ${maskedTo} | messageId: ${
+      data.messageId || 'OK'
+    }${logMeta.code ? ` | OTP: ${logMeta.code}` : ''}`
+  );
+
+  return {
+    success: true,
+    messageId: data.messageId,
+    mode: 'brevo',
+  };
+};
+
+/**
+ * Generic email dispatcher supporting Brevo HTTPS API, Nodemailer SMTP, or Console mode
  */
 const sendEmail = async ({ to, subject, html, text, type = 'notice', logMeta = {} }) => {
   const config = getEmailConfig();
@@ -177,7 +256,7 @@ const sendEmail = async ({ to, subject, html, text, type = 'notice', logMeta = {
 
   if (config.mode === 'console') {
     console.log('\n┌────────────────────────────────────────────────────────────────────────┐');
-    console.log(`│ [Email CONSOLE - Nodemailer] Type: ${type.padEnd(41)} │`);
+    console.log(`│ [Email CONSOLE] Type: ${type.padEnd(48)} │`);
     console.log(`│ Recipient: ${to.padEnd(59)} │`);
     if (logMeta.code) {
       console.log(`│ 6-Digit Code: ${logMeta.code.padEnd(56)} │`);
@@ -190,7 +269,36 @@ const sendEmail = async ({ to, subject, html, text, type = 'notice', logMeta = {
     return { success: true, mode: 'console' };
   }
 
-  // Standard SMTP via pure Nodemailer
+  // 1. Brevo HTTPS API mode (Recommended for Render Free Tier - Port 443)
+  if (config.mode === 'brevo') {
+    try {
+      return await sendEmailViaBrevo({
+        to,
+        subject,
+        html,
+        text,
+        config,
+        logMeta: { ...logMeta, type },
+      });
+    } catch (error) {
+      console.error(
+        `[Email][Brevo][ERROR] Failed sending type: ${type} to: ${maskedTo} | message: ${error.message}`
+      );
+      if (logMeta.code) {
+        console.log(`[Email Fallback - 6-Digit Verification Code for ${to}]: ${logMeta.code}`);
+      }
+      if (logMeta.actionLink) {
+        console.log(`[Email Fallback Action Link]: ${logMeta.actionLink}`);
+      }
+      return {
+        success: false,
+        error: error.message,
+        mode: 'brevo',
+      };
+    }
+  }
+
+  // 2. Standard SMTP via Nodemailer (Localhost / unblocked servers)
   try {
     const transporter = getTransporter(config);
     const info = await transporter.sendMail({

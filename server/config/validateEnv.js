@@ -22,6 +22,8 @@ export const validateEnv = () => {
   const emailMode = (process.env.EMAIL_MODE || 'console').toLowerCase();
   if (emailMode === 'smtp') {
     required.push('SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS');
+  } else if (emailMode === 'brevo') {
+    required.push('BREVO_API_KEY');
   }
 
   for (const key of required) {
