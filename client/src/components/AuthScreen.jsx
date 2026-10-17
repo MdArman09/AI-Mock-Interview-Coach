@@ -183,12 +183,38 @@ export const AuthScreen = ({ initialMode = 'login', onBack }) => {
 
     setGoogleLoading(true);
 
+    // Watchdog timer: ensure loading state resets after 25s if Google popup is closed or blocked
+    const watchdogTimer = setTimeout(() => {
+      setGoogleLoading((current) => {
+        if (current) {
+          console.warn('[Google OAuth] Timed out waiting for response.');
+          toast.info('Google Sign-In window took too long to respond. Please ensure popups are allowed and try again.');
+          return false;
+        }
+        return current;
+      });
+    }, 25000);
+
     try {
       if (window.google.accounts.oauth2) {
         const tokenClient = window.google.accounts.oauth2.initTokenClient({
           client_id: clientId,
           scope: 'email profile openid',
+          error_callback: (err) => {
+            clearTimeout(watchdogTimer);
+            setGoogleLoading(false);
+            console.warn('[Google OAuth error_callback]:', err);
+            if (err?.type === 'popup_failed_to_open') {
+              toast.error('Google Sign-In popup was blocked by your browser. Please allow popups for this site.');
+            } else if (err?.type === 'popup_closed') {
+              // User closed popup without signing in
+              toast.info('Google Sign-In was cancelled.');
+            } else {
+              toast.error(err?.message || 'Google Sign-In failed or was cancelled.');
+            }
+          },
           callback: async (tokenResponse) => {
+            clearTimeout(watchdogTimer);
             if (tokenResponse.error) {
               setGoogleLoading(false);
               if (tokenResponse.error !== 'access_denied') {
@@ -206,11 +232,12 @@ export const AuthScreen = ({ initialMode = 'login', onBack }) => {
             }
           },
         });
-        tokenClient.requestAccessToken();
+        tokenClient.requestAccessToken({ prompt: 'select_account' });
       } else if (window.google.accounts.id) {
         window.google.accounts.id.initialize({
           client_id: clientId,
           callback: async (response) => {
+            clearTimeout(watchdogTimer);
             try {
               await loginWithGoogle({ credential: response.credential });
               toast.success('Successfully authenticated with Google!');
@@ -221,9 +248,16 @@ export const AuthScreen = ({ initialMode = 'login', onBack }) => {
             }
           },
         });
-        window.google.accounts.id.prompt();
+        window.google.accounts.id.prompt((notification) => {
+          if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
+            clearTimeout(watchdogTimer);
+            setGoogleLoading(false);
+            console.warn('[Google OneTap]:', notification.getNotDisplayedReason() || notification.getSkippedReason());
+          }
+        });
       }
     } catch (err) {
+      clearTimeout(watchdogTimer);
       console.error('[Google OAuth Error]:', err);
       setGoogleLoading(false);
       toast.error('Failed to initialize Google Sign-In.');
