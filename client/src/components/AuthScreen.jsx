@@ -235,92 +235,26 @@ export const AuthScreen = ({ initialMode = 'login', onBack }) => {
       return;
     }
 
-    if (!window.google?.accounts) {
-      toast.error('Google Sign-In is still initializing. Please click again in a moment.');
-      return;
-    }
-
     setGoogleLoading(true);
 
-    // Watchdog timer: ensure loading state resets after 25s if Google popup is closed or blocked
-    const watchdogTimer = setTimeout(() => {
-      setGoogleLoading((current) => {
-        if (current) {
-          console.warn('[Google OAuth] Timed out waiting for response.');
-          toast.info('Google Sign-In window took too long to respond. Please ensure popups are allowed and try again.');
-          return false;
-        }
-        return current;
-      });
-    }, 25000);
-
     try {
-      if (window.google.accounts.oauth2) {
-        if (!tokenClientRef.current) {
-          tokenClientRef.current = window.google.accounts.oauth2.initTokenClient({
-            client_id: clientId,
-            scope: 'email profile openid',
-            error_callback: (err) => {
-              clearTimeout(watchdogTimer);
-              setGoogleLoading(false);
-              console.warn('[Google OAuth error_callback]:', err);
-              if (err?.type === 'popup_failed_to_open') {
-                toast.error('Google popup was blocked. Look at the address bar and click "Always allow popups" to sign in.');
-              } else if (err?.type === 'popup_closed') {
-                toast.info('Google Sign-In was cancelled.');
-              } else {
-                toast.error(err?.message || 'Google Sign-In failed or was cancelled.');
-              }
-            },
-            callback: async (tokenResponse) => {
-              clearTimeout(watchdogTimer);
-              if (tokenResponse.error) {
-                setGoogleLoading(false);
-                if (tokenResponse.error !== 'access_denied') {
-                  toast.error(`Google Sign-In failed: ${tokenResponse.error}`);
-                }
-                return;
-              }
-              try {
-                await loginWithGoogle({ accessToken: tokenResponse.access_token });
-                toast.success('Successfully authenticated with Google!');
-              } catch (err) {
-                toast.error(err.message || 'Failed to authenticate with Google');
-              } finally {
-                setGoogleLoading(false);
-              }
-            },
-          });
-        }
-        tokenClientRef.current.requestAccessToken({ prompt: 'select_account' });
-      } else if (window.google.accounts.id) {
-        window.google.accounts.id.initialize({
+      const redirectUri = window.location.origin;
+      const authUrl =
+        `https://accounts.google.com/o/oauth2/v2/auth?` +
+        new URLSearchParams({
           client_id: clientId,
-          callback: async (response) => {
-            clearTimeout(watchdogTimer);
-            try {
-              await loginWithGoogle({ credential: response.credential });
-              toast.success('Successfully authenticated with Google!');
-            } catch (err) {
-              toast.error(err.message || 'Failed to authenticate with Google');
-            } finally {
-              setGoogleLoading(false);
-            }
-          },
-        });
-        window.google.accounts.id.prompt((notification) => {
-          if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-            clearTimeout(watchdogTimer);
-            setGoogleLoading(false);
-            console.warn('[Google OneTap]:', notification.getNotDisplayedReason() || notification.getSkippedReason());
-          }
-        });
-      }
+          redirect_uri: redirectUri,
+          response_type: 'token',
+          scope: 'email profile openid',
+          prompt: 'select_account',
+          include_granted_scopes: 'true',
+        }).toString();
+
+      window.location.href = authUrl;
     } catch (err) {
-      clearTimeout(watchdogTimer);
       console.error('[Google OAuth Error]:', err);
       setGoogleLoading(false);
-      toast.error('Failed to initialize Google Sign-In.');
+      toast.error('Failed to initiate Google Sign-In.');
     }
   };
 

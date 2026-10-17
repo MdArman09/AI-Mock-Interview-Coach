@@ -15,8 +15,39 @@ export const AuthProvider = ({ children }) => {
   });
   const [loading, setLoading] = useState(true);
 
-  // Validate token or refresh user info on mount
+  // Validate token or refresh user info on mount, and handle Google OAuth redirect tokens
   useEffect(() => {
+    // 1. Check for incoming Google OAuth redirect token in URL hash
+    if (window.location.hash && window.location.hash.includes('access_token=')) {
+      try {
+        const hash = window.location.hash.replace(/^#/, '');
+        const params = new URLSearchParams(hash);
+        const accessToken = params.get('access_token');
+        if (accessToken) {
+          window.history.replaceState({}, document.title, window.location.pathname + window.location.search);
+          setLoading(true);
+          authAPI.googleAuth({ accessToken })
+            .then((res) => {
+              if (res.token) {
+                localStorage.setItem('interview_coach_token', res.token);
+                localStorage.setItem('interview_coach_user', JSON.stringify(res.user));
+                setToken(res.token);
+                setUser(res.user);
+              }
+            })
+            .catch((err) => {
+              console.error('Failed to authenticate Google redirect token:', err);
+            })
+            .finally(() => {
+              setLoading(false);
+            });
+          return;
+        }
+      } catch (err) {
+        console.error('Error parsing Google OAuth hash:', err);
+      }
+    }
+
     const verifyUser = async () => {
       if (!token) {
         setLoading(false);
