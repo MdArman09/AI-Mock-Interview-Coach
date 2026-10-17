@@ -23,12 +23,28 @@ export const getEmailConfig = () => {
   const port = parseInt(process.env.SMTP_PORT || '465', 10);
   const user = process.env.SMTP_USER;
   const pass = process.env.SMTP_PASS;
-  const from = process.env.EMAIL_FROM || (user ? `AI Mock Interview Coach <${user}>` : 'AI Mock Interview Coach <no-reply@mockinterview.coach>');
+  const resendApiKey = process.env.RESEND_API_KEY;
+  const from =
+    process.env.EMAIL_FROM ||
+    (resendApiKey
+      ? 'AI Mock Interview Coach <onboarding@resend.dev>'
+      : user
+      ? `AI Mock Interview Coach <${user}>`
+      : 'AI Mock Interview Coach <no-reply@mockinterview.coach>');
   const frontendUrl = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/+$/, '');
 
+  const isResendConfigured = Boolean(resendApiKey);
   const isSmtpConfigured = Boolean(host && user && pass);
-  // If SMTP credentials are provided, default to SMTP mode even if EMAIL_MODE wasn't explicitly set
-  const activeMode = isSmtpConfigured && (mode === 'smtp' || mode === '') ? 'smtp' : mode === 'smtp' && isSmtpConfigured ? 'smtp' : 'console';
+
+  // If RESEND_API_KEY is provided, prioritize Resend (works over HTTPS port 443 on Render)
+  let activeMode = 'console';
+  if (mode === 'resend' || (isResendConfigured && mode !== 'smtp' && mode !== 'console')) {
+    activeMode = 'resend';
+  } else if (mode === 'smtp' || (isSmtpConfigured && mode !== 'console')) {
+    activeMode = 'smtp';
+  } else if (mode === 'console') {
+    activeMode = 'console';
+  }
 
   return {
     mode: activeMode,
@@ -36,6 +52,7 @@ export const getEmailConfig = () => {
     port,
     user,
     pass,
+    resendApiKey,
     from,
     frontendUrl,
     isProduction: process.env.NODE_ENV === 'production',
@@ -58,6 +75,9 @@ export const getTransporter = (config = getEmailConfig()) => {
     tls: {
       rejectUnauthorized: config.isProduction,
     },
+    connectionTimeout: 5000, // 5s connection timeout
+    greetingTimeout: 5000,   // 5s greeting timeout
+    socketTimeout: 8000,     // 8s socket inactivity timeout
   });
 
   return cachedTransporter;
@@ -71,6 +91,11 @@ export const getTransporter = (config = getEmailConfig()) => {
 export const verifyEmailServiceStartup = async () => {
   const config = getEmailConfig();
   console.log(`[Email] Mode: ${config.mode}`);
+
+  if (config.mode === 'resend') {
+    console.log('[Email] Resend API active (HTTPS Port 443 — Render compatible)');
+    return { success: true };
+  }
 
   if (config.mode === 'smtp') {
     try {
@@ -162,23 +187,56 @@ const sendEmail = async ({ to, subject, html, text, type = 'notice', logMeta = {
   const maskedTo = maskEmail(to);
 
   if (config.mode === 'console') {
-    if (!config.isProduction) {
-      console.log('\n┌────────────────────────────────────────────────────────────────────────┐');
-      console.log(`│ [Email DEV CONSOLE] Type: ${type.padEnd(44)} │`);
-      console.log(`│ Recipient: ${to.padEnd(59)} │`);
-      if (logMeta.actionLink) {
-        console.log('│ Action Link (copy & paste into browser):                               │');
-        console.log(`│ ${logMeta.actionLink.padEnd(70)} │`);
-      }
-      console.log('└────────────────────────────────────────────────────────────────────────┘\n');
-    } else {
-      console.log(`[Email] Console mode active in production: skipped sending email to ${maskedTo} (Type: ${type})`);
+    console.log('\n┌────────────────────────────────────────────────────────────────────────┐');
+    console.log(`│ [Email CONSOLE] Type: ${type.padEnd(48)} │`);
+    console.log(`│ Recipient: ${to.padEnd(59)} │`);
+    if (logMeta.actionLink) {
+      console.log('│ Action Link (copy & paste into browser):                               │');
+      console.log(`│ ${logMeta.actionLink.padEnd(70)} │`);
     }
-
-    console.log(`[Email] Dispatched type: ${type} to: ${maskedTo} | result: console-mode`);
+    console.log('└────────────────────────────────────────────────────────────────────────┘\n');
     return { success: true, mode: 'console' };
   }
 
+  // Resend transactional email over HTTPS (Port 443 - fully supported on Render free tier)
+  if (config.mode === 'resend') {
+    try {
+      const response = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${config.resendApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          from: config.from,
+          to: [to],
+          subject,
+          html,
+          text,
+        }),
+      });
+
+      const resData = await response.json();
+      if (!response.ok) {
+        throw new Error(resData?.message || `Resend HTTP error ${response.status}`);
+      }
+
+      console.log(`[Email] Dispatched via Resend HTTPS to: ${maskedTo} | id: ${resData.id}`);
+      return { success: true, messageId: resData.id, mode: 'resend' };
+    } catch (error) {
+      console.error(`[Email][ERROR] Resend API failed: ${error.message}`);
+      if (logMeta.actionLink) {
+        console.log(`[Email Fallback Action Link]: ${logMeta.actionLink}`);
+      }
+      return {
+        success: false,
+        error: error.message,
+        mode: 'resend',
+      };
+    }
+  }
+
+  // Standard SMTP (e.g. Brevo or custom SMTP)
   try {
     const transporter = getTransporter(config);
     const info = await transporter.sendMail({
@@ -202,6 +260,10 @@ const sendEmail = async ({ to, subject, html, text, type = 'notice', logMeta = {
     console.error(
       `[Email][ERROR] Failed sending type: ${type} to: ${maskedTo} | code: ${error.code || 'UNKNOWN'} | message: ${error.message}`
     );
+    // Print fallback verification link so developers / admins can find it in server logs if SMTP fails
+    if (logMeta.actionLink) {
+      console.log(`[Email Fallback Action Link (SMTP failed)]: ${logMeta.actionLink}`);
+    }
     return {
       success: false,
       error: error.message,

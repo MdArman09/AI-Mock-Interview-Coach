@@ -139,11 +139,13 @@ export const register = async (req, res) => {
             expiresAt,
           });
 
-          reVerifySendResult = await sendVerificationEmail({
+          sendVerificationEmail({
             email: existingUser.email,
             name: existingUser.name,
             token: rawToken,
             frontendUrl: req.headers.origin,
+          }).catch((sendErr) => {
+            console.error('[Register Re-verify Email Background Error]:', sendErr.message);
           });
         }
 
@@ -155,9 +157,6 @@ export const register = async (req, res) => {
 
         if (process.env.NODE_ENV !== 'production') {
           reVerifyPayload.emailMode = getEmailConfig().mode;
-          if (reVerifySendResult?.success === false) {
-            reVerifyPayload.emailSendFailed = true;
-          }
         }
 
         return res.status(201).json(reVerifyPayload);
@@ -203,7 +202,6 @@ export const register = async (req, res) => {
     }
 
     // Generate single-use 24h verification token
-    let initialSendResult = { success: true };
     try {
       const rawToken = crypto.randomBytes(32).toString('hex');
       const tokenHash = hashToken(rawToken);
@@ -216,15 +214,16 @@ export const register = async (req, res) => {
         expiresAt,
       });
 
-      initialSendResult = await sendVerificationEmail({
+      sendVerificationEmail({
         email: user.email,
         name: user.name,
         token: rawToken,
         frontendUrl: req.headers.origin,
+      }).catch((sendErr) => {
+        console.error('[Verification Email Background Error]:', sendErr.message);
       });
     } catch (tokenErr) {
       console.error('[Verification Token Create Error]:', tokenErr);
-      initialSendResult = { success: false, error: tokenErr.message };
     }
 
     const newRegisterPayload = {
@@ -235,9 +234,6 @@ export const register = async (req, res) => {
 
     if (process.env.NODE_ENV !== 'production') {
       newRegisterPayload.emailMode = getEmailConfig().mode;
-      if (initialSendResult?.success === false) {
-        newRegisterPayload.emailSendFailed = true;
-      }
     }
 
     return res.status(201).json(newRegisterPayload);
