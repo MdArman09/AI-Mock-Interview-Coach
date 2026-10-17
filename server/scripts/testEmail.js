@@ -11,43 +11,36 @@ const args = process.argv.slice(2);
 const targetEmail = args.find((arg) => arg.includes('@') && !arg.startsWith('--'));
 
 if (!targetEmail) {
-  console.log('\nUsage: npm run test:email <recipient-email> [--resend|--smtp|--console]');
-  console.log('   or: node scripts/testEmail.js <recipient-email> [--resend|--smtp|--console]\n');
+  console.log('\nUsage: npm run test:email <recipient-email> [--smtp|--console]');
+  console.log('   or: node scripts/testEmail.js <recipient-email> [--smtp|--console]\n');
   console.log('Examples:');
-  console.log('  npm run test:email candidate@gmail.com --resend');
-  console.log('  npm run test:email candidate@gmail.com --smtp');
-  console.log('  npm run test:email candidate@gmail.com --console\n');
+  console.log('  npm run test:email candidate@gmail.com');
+  console.log('  npm run test:email candidate@gmail.com --smtp\n');
   process.exit(1);
 }
 
 const runTest = async () => {
-  const forceResend = args.some((arg) => arg.toLowerCase() === '--resend' || arg.toLowerCase() === '--mode=resend');
   const forceSmtp = args.some((arg) => arg.toLowerCase() === '--smtp' || arg.toLowerCase() === '--mode=smtp');
   const forceConsole = args.some((arg) => arg.toLowerCase() === '--console' || arg.toLowerCase() === '--mode=console');
   let mode = (process.env.EMAIL_MODE || 'console').toLowerCase();
-  if (forceResend) mode = 'resend';
   if (forceSmtp) mode = 'smtp';
   if (forceConsole) mode = 'console';
-  const resendApiKey = process.env.RESEND_API_KEY || '';
   const host = process.env.SMTP_HOST || 'smtp-relay.brevo.com';
   const port = parseInt(process.env.SMTP_PORT || '587', 10);
   const user = process.env.SMTP_USER || '';
   const pass = process.env.SMTP_PASS || '';
-  const from = process.env.EMAIL_FROM || (mode === 'resend' ? 'AI Mock Interview Coach <onboarding@resend.dev>' : 'AI Mock Interview Coach <no-reply@mockinterview.coach>');
+  const from = process.env.EMAIL_FROM || 'AI Mock Interview Coach <no-reply@mockinterview.coach>';
 
   console.log('================================================================');
   console.log('           AI MOCK INTERVIEW COACH — EMAIL TEST SUITE           ');
   console.log('================================================================');
   console.log(`[Email Diagnostics] Active EMAIL_MODE : ${mode}`);
-  if (mode === 'resend') {
-    console.log(`[Email Diagnostics] Resend API Key    : ${resendApiKey ? 'Configured (hidden)' : 'MISSING'}`);
-  } else {
-    console.log(`[Email Diagnostics] SMTP Host         : ${host}`);
-    console.log(`[Email Diagnostics] SMTP Port         : ${port}`);
-    console.log(`[Email Diagnostics] SMTP User         : ${maskEmail(user)}`);
-  }
+  console.log(`[Email Diagnostics] SMTP Host         : ${host}`);
+  console.log(`[Email Diagnostics] SMTP Port         : ${port}`);
+  console.log(`[Email Diagnostics] SMTP User         : ${maskEmail(user)}`);
   console.log(`[Email Diagnostics] Sender (FROM)     : ${from}`);
   console.log(`[Email Diagnostics] Recipient (TO)    : ${maskEmail(targetEmail)} (${targetEmail})`);
+  console.log(`[Email Diagnostics] Password Status   : ${pass ? 'Configured (hidden)' : 'MISSING'}`);
   console.log('----------------------------------------------------------------');
 
   if (mode === 'console') {
@@ -60,42 +53,6 @@ const runTest = async () => {
     console.log('✓ [Email] Console mode test completed successfully.');
     console.log('================================================================');
     process.exit(0);
-  }
-
-  if (mode === 'resend') {
-    if (!resendApiKey) {
-      console.error('✗ [Email][ERROR] RESEND_API_KEY is not defined in .env');
-      process.exit(1);
-    }
-    console.log('[Email] Sending test email via Resend HTTPS API (port 443)...');
-    try {
-      const resp = await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${resendApiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          from,
-          to: [targetEmail],
-          subject: 'AI Mock Interview Coach — Resend Diagnostic Test',
-          text: `Hello!\n\nThis is a test email sent via Resend API over HTTPS (port 443).\n\nTimestamp: ${new Date().toISOString()}`,
-          html: `<p>Hello!</p><p>This is a test email sent via <strong>Resend HTTPS API</strong>.</p>`,
-        }),
-      });
-      const data = await resp.json();
-      if (!resp.ok) {
-        throw new Error(data?.message || `HTTP ${resp.status}`);
-      }
-      console.log('✓ [Email] Resend test email successfully transmitted!');
-      console.log(`  Message ID : ${data.id}`);
-      console.log('================================================================');
-      process.exit(0);
-    } catch (err) {
-      console.error(`✗ [Email][ERROR] Resend dispatch failed: ${err.message}`);
-      console.log('================================================================');
-      process.exit(1);
-    }
   }
 
   // SMTP Mode

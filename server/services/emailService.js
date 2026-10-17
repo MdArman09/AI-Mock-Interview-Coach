@@ -18,33 +18,28 @@ export const maskEmail = (email = '') => {
 };
 
 export const getEmailConfig = () => {
-  const mode = (process.env.EMAIL_MODE || '').toLowerCase();
-  const host = process.env.SMTP_HOST;
+  const mode = (process.env.EMAIL_MODE || '').trim().toLowerCase().replace(/^["']|["']$/g, '');
+  const host = (process.env.SMTP_HOST || '').trim().replace(/^["']|["']$/g, '');
   const port = parseInt(process.env.SMTP_PORT || '465', 10);
-  const user = process.env.SMTP_USER;
-  const pass = process.env.SMTP_PASS;
-  const resendApiKey = process.env.RESEND_API_KEY;
+  const user = (process.env.SMTP_USER || '').trim().replace(/^["']|["']$/g, '');
+  const pass = (process.env.SMTP_PASS || '').trim().replace(/^["']|["']$/g, '');
+  let rawFrom = (process.env.EMAIL_FROM || '').trim().replace(/^["']|["']$/g, '');
   const from =
-    process.env.EMAIL_FROM ||
-    (resendApiKey
-      ? 'AI Mock Interview Coach <onboarding@resend.dev>'
-      : user
-      ? `AI Mock Interview Coach <${user}>`
-      : 'AI Mock Interview Coach <no-reply@mockinterview.coach>');
-  const frontendUrl = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/+$/, '');
+    rawFrom ||
+    (user ? `AI Mock Interview Coach <${user}>` : 'AI Mock Interview Coach <no-reply@mockinterview.coach>');
+  const frontendUrl = (process.env.FRONTEND_URL || 'http://localhost:5173')
+    .trim()
+    .replace(/^["']|["']$/g, '')
+    .replace(/\/+$/, '');
 
-  const isResendConfigured = Boolean(resendApiKey);
   const isSmtpConfigured = Boolean(host && user && pass);
-
-  // If RESEND_API_KEY is provided, prioritize Resend (works over HTTPS port 443 on Render)
-  let activeMode = 'console';
-  if (mode === 'resend' || (isResendConfigured && mode !== 'smtp' && mode !== 'console')) {
-    activeMode = 'resend';
-  } else if (mode === 'smtp' || (isSmtpConfigured && mode !== 'console')) {
-    activeMode = 'smtp';
-  } else if (mode === 'console') {
-    activeMode = 'console';
-  }
+  // If SMTP credentials are provided, default to SMTP mode even if EMAIL_MODE wasn't explicitly set
+  const activeMode =
+    isSmtpConfigured && (mode === 'smtp' || mode === '')
+      ? 'smtp'
+      : mode === 'smtp' && isSmtpConfigured
+      ? 'smtp'
+      : 'console';
 
   return {
     mode: activeMode,
@@ -52,7 +47,6 @@ export const getEmailConfig = () => {
     port,
     user,
     pass,
-    resendApiKey,
     from,
     frontendUrl,
     isProduction: process.env.NODE_ENV === 'production',
@@ -91,11 +85,6 @@ export const getTransporter = (config = getEmailConfig()) => {
 export const verifyEmailServiceStartup = async () => {
   const config = getEmailConfig();
   console.log(`[Email] Mode: ${config.mode}`);
-
-  if (config.mode === 'resend') {
-    console.log('[Email] Resend API active (HTTPS Port 443 — Render compatible)');
-    return { success: true };
-  }
 
   if (config.mode === 'smtp') {
     try {
@@ -198,45 +187,7 @@ const sendEmail = async ({ to, subject, html, text, type = 'notice', logMeta = {
     return { success: true, mode: 'console' };
   }
 
-  // Resend transactional email over HTTPS (Port 443 - fully supported on Render free tier)
-  if (config.mode === 'resend') {
-    try {
-      const response = await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${config.resendApiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          from: config.from,
-          to: [to],
-          subject,
-          html,
-          text,
-        }),
-      });
-
-      const resData = await response.json();
-      if (!response.ok) {
-        throw new Error(resData?.message || `Resend HTTP error ${response.status}`);
-      }
-
-      console.log(`[Email] Dispatched via Resend HTTPS to: ${maskedTo} | id: ${resData.id}`);
-      return { success: true, messageId: resData.id, mode: 'resend' };
-    } catch (error) {
-      console.error(`[Email][ERROR] Resend API failed: ${error.message}`);
-      if (logMeta.actionLink) {
-        console.log(`[Email Fallback Action Link]: ${logMeta.actionLink}`);
-      }
-      return {
-        success: false,
-        error: error.message,
-        mode: 'resend',
-      };
-    }
-  }
-
-  // Standard SMTP (e.g. Brevo or custom SMTP)
+  // Standard SMTP via Nodemailer
   try {
     const transporter = getTransporter(config);
     const info = await transporter.sendMail({
