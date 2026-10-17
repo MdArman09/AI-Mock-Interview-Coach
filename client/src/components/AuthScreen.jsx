@@ -169,6 +169,65 @@ export const AuthScreen = ({ initialMode = 'login', onBack }) => {
     return stored ? stored.trim() : '';
   };
 
+  const tokenClientRef = useRef(null);
+
+  // Pre-initialize Google token client when Google scripts are ready to ensure direct user-gesture compliance
+  useEffect(() => {
+    const initClient = () => {
+      const clientId = getEffectiveGoogleClientId();
+      if (!clientId || !window.google?.accounts?.oauth2 || tokenClientRef.current) return;
+
+      try {
+        tokenClientRef.current = window.google.accounts.oauth2.initTokenClient({
+          client_id: clientId,
+          scope: 'email profile openid',
+          error_callback: (err) => {
+            setGoogleLoading(false);
+            console.warn('[Google OAuth error_callback]:', err);
+            if (err?.type === 'popup_failed_to_open') {
+              toast.error('Google popup was blocked by your browser. Please allow popups for this site in your address bar.');
+            } else if (err?.type === 'popup_closed') {
+              toast.info('Google Sign-In was cancelled.');
+            } else {
+              toast.error(err?.message || 'Google Sign-In was cancelled or blocked.');
+            }
+          },
+          callback: async (tokenResponse) => {
+            if (tokenResponse.error) {
+              setGoogleLoading(false);
+              if (tokenResponse.error !== 'access_denied') {
+                toast.error(`Google Sign-In failed: ${tokenResponse.error}`);
+              }
+              return;
+            }
+            try {
+              await loginWithGoogle({ accessToken: tokenResponse.access_token });
+              toast.success('Successfully authenticated with Google!');
+            } catch (err) {
+              toast.error(err.message || 'Failed to authenticate with Google');
+            } finally {
+              setGoogleLoading(false);
+            }
+          },
+        });
+      } catch (e) {
+        console.warn('[Google OAuth init error]:', e);
+      }
+    };
+
+    if (window.google?.accounts?.oauth2) {
+      initClient();
+    } else {
+      const interval = setInterval(() => {
+        if (window.google?.accounts?.oauth2) {
+          clearInterval(interval);
+          initClient();
+        }
+      }, 500);
+      return () => clearInterval(interval);
+    }
+  }, []);
+
   const handleGoogleLogin = () => {
     const clientId = getEffectiveGoogleClientId();
     if (!clientId) {
@@ -197,42 +256,43 @@ export const AuthScreen = ({ initialMode = 'login', onBack }) => {
 
     try {
       if (window.google.accounts.oauth2) {
-        const tokenClient = window.google.accounts.oauth2.initTokenClient({
-          client_id: clientId,
-          scope: 'email profile openid',
-          error_callback: (err) => {
-            clearTimeout(watchdogTimer);
-            setGoogleLoading(false);
-            console.warn('[Google OAuth error_callback]:', err);
-            if (err?.type === 'popup_failed_to_open') {
-              toast.error('Google Sign-In popup was blocked by your browser. Please allow popups for this site.');
-            } else if (err?.type === 'popup_closed') {
-              // User closed popup without signing in
-              toast.info('Google Sign-In was cancelled.');
-            } else {
-              toast.error(err?.message || 'Google Sign-In failed or was cancelled.');
-            }
-          },
-          callback: async (tokenResponse) => {
-            clearTimeout(watchdogTimer);
-            if (tokenResponse.error) {
+        if (!tokenClientRef.current) {
+          tokenClientRef.current = window.google.accounts.oauth2.initTokenClient({
+            client_id: clientId,
+            scope: 'email profile openid',
+            error_callback: (err) => {
+              clearTimeout(watchdogTimer);
               setGoogleLoading(false);
-              if (tokenResponse.error !== 'access_denied') {
-                toast.error(`Google Sign-In failed: ${tokenResponse.error}`);
+              console.warn('[Google OAuth error_callback]:', err);
+              if (err?.type === 'popup_failed_to_open') {
+                toast.error('Google popup was blocked. Look at the address bar and click "Always allow popups" to sign in.');
+              } else if (err?.type === 'popup_closed') {
+                toast.info('Google Sign-In was cancelled.');
+              } else {
+                toast.error(err?.message || 'Google Sign-In failed or was cancelled.');
               }
-              return;
-            }
-            try {
-              await loginWithGoogle({ accessToken: tokenResponse.access_token });
-              toast.success('Successfully authenticated with Google!');
-            } catch (err) {
-              toast.error(err.message || 'Failed to authenticate with Google');
-            } finally {
-              setGoogleLoading(false);
-            }
-          },
-        });
-        tokenClient.requestAccessToken({ prompt: 'select_account' });
+            },
+            callback: async (tokenResponse) => {
+              clearTimeout(watchdogTimer);
+              if (tokenResponse.error) {
+                setGoogleLoading(false);
+                if (tokenResponse.error !== 'access_denied') {
+                  toast.error(`Google Sign-In failed: ${tokenResponse.error}`);
+                }
+                return;
+              }
+              try {
+                await loginWithGoogle({ accessToken: tokenResponse.access_token });
+                toast.success('Successfully authenticated with Google!');
+              } catch (err) {
+                toast.error(err.message || 'Failed to authenticate with Google');
+              } finally {
+                setGoogleLoading(false);
+              }
+            },
+          });
+        }
+        tokenClientRef.current.requestAccessToken({ prompt: 'select_account' });
       } else if (window.google.accounts.id) {
         window.google.accounts.id.initialize({
           client_id: clientId,
