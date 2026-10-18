@@ -496,8 +496,8 @@ The application enforces defense-in-depth across the API and data persistence la
 ## Author and License
 
 - **Author:** Md Arman Alam <!-- TODO: verify - insert your full name -->
-- **GitHub:** MdArman09(https://github.com/MdArman09) <!-- TODO: verify - insert your GitHub handle -->
-- **LinkedIn:** Md Arman Alam(https://linkedin.com/in/md-arman-alam) <!-- TODO: verify - insert your LinkedIn URL -->
-- **Email:** arman.dev09@gmail.com(mailto:arman.dev09@gmail.com) <!-- TODO: verify - insert your contact email -->
+- **GitHub:** MdArman09 (https://github.com/MdArman09) <!-- TODO: verify - insert your GitHub handle -->
+- **LinkedIn:** Md Arman Alam (https://linkedin.com/in/md-arman-alam) <!-- TODO: verify - insert your LinkedIn URL -->
+- **Email:** arman.dev09@gmail.com (mailto:arman.dev09@gmail.com) <!-- TODO: verify - insert your contact email -->
 
 This project is licensed under the terms of the [MIT License](LICENSE).
