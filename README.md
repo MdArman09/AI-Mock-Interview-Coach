@@ -12,7 +12,7 @@
 [![Vercel](https://img.shields.io/badge/Vercel-000000?style=for-the-badge&logo=vercel&logoColor=white)](vercel.json)
 [![Render](https://img.shields.io/badge/Render-46E3B7?style=for-the-badge&logo=render&logoColor=white)](server/server.js)
 
-- **Live Application:** [https://YOUR-VERCEL-URL](https://YOUR-VERCEL-URL) <!-- TODO: verify - replace with your live deployment URL -->
+- **Live Application:** AI Mock Interview Coach(https://ai-mock-interview-coach-rho.vercel.app/) <!-- TODO: verify - replace with your live deployment URL -->
 
 ---
 
@@ -495,9 +495,9 @@ The application enforces defense-in-depth across the API and data persistence la
 
 ## Author and License
 
-- **Author:** [Md Arman Alam] <!-- TODO: verify - insert your full name -->
-- **GitHub:** [@YOUR_GITHUB_USERNAME](https://github.com/MdArman09) <!-- TODO: verify - insert your GitHub handle -->
-- **LinkedIn:** [YOUR_LINKEDIN_URL](https://linkedin.com/in/md-arman-alam) <!-- TODO: verify - insert your LinkedIn URL -->
-- **Email:** [arman.dev09@gmail.com](mailto:arman.dev09@gmail.com) <!-- TODO: verify - insert your contact email -->
+- **Author:** Md Arman Alam <!-- TODO: verify - insert your full name -->
+- **GitHub:** MdArman09(https://github.com/MdArman09) <!-- TODO: verify - insert your GitHub handle -->
+- **LinkedIn:** Md Arman Alam(https://linkedin.com/in/md-arman-alam) <!-- TODO: verify - insert your LinkedIn URL -->
+- **Email:** arman.dev09@gmail.com(mailto:arman.dev09@gmail.com) <!-- TODO: verify - insert your contact email -->
 
 This project is licensed under the terms of the [MIT License](LICENSE).
