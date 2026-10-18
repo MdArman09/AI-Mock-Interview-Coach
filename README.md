@@ -13,13 +13,11 @@
 [![Render](https://img.shields.io/badge/Render-46E3B7?style=for-the-badge&logo=render&logoColor=white)](server/server.js)
 
 - **Live Application:** [https://YOUR-VERCEL-URL](https://YOUR-VERCEL-URL) <!-- TODO: verify - replace with your live deployment URL -->
-- **Demo Walkthrough:** [docs/demo.gif](docs/demo.gif) <!-- TODO: verify - record and place demo GIF at docs/demo.gif -->
 
 ---
 
 ## Table of Contents
 
-- [Screenshots](#screenshots)
 - [Why I Built This](#why-i-built-this)
 - [Features](#features)
 - [How It Works](#how-it-works)
@@ -35,21 +33,6 @@
 - [Known Limitations](#known-limitations)
 - [Roadmap](#roadmap)
 - [Author and License](#author-and-license)
-
----
-
-## Screenshots
-
-> *Note: Place recorded PNG screenshots inside [docs/screenshots/](docs/screenshots/) using the filenames below.*
-
-| View | Screenshot | Description |
-| :--- | :--- | :--- |
-| **Landing Page** | `docs/screenshots/landing-page.png` <!-- TODO: verify - add image file --> | Clean hero overview, STAR rubric breakdown, and auth entry points. |
-| **Practice Studio** | `docs/screenshots/practice-page.png` <!-- TODO: verify - add image file --> | Question selection, live speech recognition, real-time STAR cue badges, and manual typing toggle. |
-| **Evaluation Card** | `docs/screenshots/results-page.png` <!-- TODO: verify - add image file --> | Radial performance gauge, STAR component breakdown with evidence quotes, strengths, and model answer. |
-| **Interview History** | `docs/screenshots/history-source-chips.png` <!-- TODO: verify - add image file --> | Chronological attempt log with source filter chips (`All`, `Question Bank`, `Resume Questions`) and undo toast. |
-| **Resume Analysis** | `docs/screenshots/resume-analysis.png` <!-- TODO: verify - add image file --> | Stage 1 profile extraction, candidate level detection, and generated question set management. |
-| **Mobile Layout** | `docs/screenshots/mobile-view.png` <!-- TODO: verify - add image file --> | Responsive interface with fixed bottom navigation bar on handheld screens. |
 
 ---
 
@@ -427,9 +410,6 @@ ai-mock-interview-coach/
 │   │   └── schemas.js               # Zod validation schemas for all incoming payloads
 │   ├── package.json                 # Server dependencies and start scripts
 │   └── server.js                    # Server bootstrap, CORS allowlist, and middleware
-├── docs/
-│   └── screenshots/
-│       └── .gitkeep                 # Preserves screenshots directory
 ├── .env.example                     # Root environment variable template
 ├── .gitignore                       # Repository exclusion rules
 ├── LICENSE                          # MIT License
